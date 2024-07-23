@@ -1,11 +1,14 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-marker",
+	"name": "Marker PDF to MD",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
+	"description": "Connects to a marker api endpoint and then uses all of the power of marker to convert your pdfs into markdown!",
+	"author": "L3-N0X",
 	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"fundingUrl": {
+		"Buy Me a Coffee": "https://buymeacoffee.com/l3n0x",
+		"GitHub Sponsor": "https://github.com/sponsors/L3-N0X"
+	},
 	"isDesktopOnly": false
 }
