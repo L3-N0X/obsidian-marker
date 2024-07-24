@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
 	App,
 	Plugin,
@@ -6,6 +7,7 @@ import {
 	Notice,
 	Modal,
 	TFolder,
+	TFile,
 } from 'obsidian';
 
 // Remember to rename these classes and interfaces!
@@ -16,6 +18,8 @@ interface MarkerSettings {
 	deleteOriginal: boolean;
 	extractContent: string;
 	writeMetadata: boolean;
+	movePDFtoFolder: boolean;
+	createAssetSubfolder: boolean;
 }
 
 const DEFAULT_SETTINGS: MarkerSettings = {
@@ -24,6 +28,8 @@ const DEFAULT_SETTINGS: MarkerSettings = {
 	deleteOriginal: false,
 	extractContent: 'all',
 	writeMetadata: true,
+	movePDFtoFolder: false, // TODO: Implement this
+	createAssetSubfolder: true, // TODO: Implement this
 };
 
 export default class Marker extends Plugin {
@@ -31,218 +37,288 @@ export default class Marker extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		const { vault } = this.app;
+		this.addCommands();
+		this.addSettingTab(new SampleSettingTab(this.app, this));
+	}
 
-		function base64ToArrayBuffer(base64: string): ArrayBuffer {
-			const binaryString = window.atob(base64);
-			const len = binaryString.length;
-			const bytes = new Uint8Array(len);
-			for (let i = 0; i < len; i++) {
-				bytes[i] = binaryString.charCodeAt(i);
-			}
-			return bytes.buffer;
-		}
-
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
+	private addCommands() {
 		this.addCommand({
 			id: 'convert-pdf-to-md',
 			name: 'Convert PDF to MD',
 			checkCallback: (checking: boolean) => {
-				// Check if currently opened file is a PDF
-				const activeView = this.app.workspace.getActiveFile();
-				if (activeView?.extension === 'pdf') {
-					if (!checking) {
-						// This is the actual code that will run when the command is executed
-						let pdf_content;
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile?.extension !== 'pdf') {
+					return false;
+				}
 
-						vault
-							.readBinary(activeView)
-							.then((data) => {
-								pdf_content = data;
-
-								// Create a FormData object to hold the file data
-								const formData = new FormData();
-								formData.append(
-									'pdf_file',
-									new Blob([pdf_content], {
-										type: 'application/pdf',
-									}),
-									'document.pdf'
-								);
-								formData.append(
-									'extract_images',
-									this.settings.extractContent !== 'text' ? 'true' : 'false'
-								);
-
-								console.log(formData.get('pdf_file'));
-
-								// Call the marker API to convert the PDF to MD
-								const endpoint = this.settings.markerEndpoint;
-								return fetch(`http://${endpoint}/convert`, {
-									method: 'POST',
-									body: formData,
-								});
-							})
-							.then((response) => {
-								if (!response.ok) {
-									throw new Error(`HTTP error! status: ${response.status}`);
-								}
-								return response.json();
-							})
-							.then(async (data) => {
-								data.forEach(
-									async (converted: {
-										markdown: string;
-										metadata: { [key: string]: string };
-										images: { [key: string]: string };
-									}): Promise<void> => {
-										const markdown = converted.markdown;
-										const metadata = converted.metadata;
-										const images = converted.images;
-
-										console.log(markdown);
-										console.log(metadata);
-										console.log(images);
-
-										let path = '';
-
-										if (this.settings.createFolder) {
-											// check if folder exists
-											const folder = vault.getFolderByPath(
-												activeView.path.split('.')[0]
-											);
-											if (folder instanceof TFolder) {
-												await new Promise((resolve, reject) => {
-													new MarkerOkayCancelDialog(
-														this.app,
-														'Folder already exists!',
-														'The folder with the name "' +
-															activeView.path.split('.')[0] +
-															'" already exists. Do you want to integrate the files into this folder?',
-														(result) => {
-															if (result) {
-																path = activeView.path.split('.')[0] + '/';
-																resolve();
-															} else {
-																new Notice('Conversion cancelled');
-																reject('Conversion cancelled by user');
-															}
-														}
-													).open();
-												});
-											} else {
-												await vault
-													.createFolder(activeView.path.split('.')[0] + '/')
-													.then(folder)
-													.catch(async (error) => {
-														console.error(error);
-													});
-												path = activeView.path.split('.')[0] + '/';
-												new Notice('Folder created' + path);
-											}
-										}
-
-										// wait for use to choose wether to integrate files into folder
-
-										if (this.settings.extractContent !== 'text') {
-											Object.entries(images).forEach(async ([key, value]) => {
-												const image_name = key;
-												const image_base64 = value;
-
-												const imageArrayBuffer =
-													base64ToArrayBuffer(image_base64);
-
-												vault
-													.createBinary(path + image_name, imageArrayBuffer)
-													.then(() => {
-														new Notice(
-															'Image file created: ' + path + image_name
-														);
-													})
-													.catch((error) => {
-														console.error(error);
-													});
-											});
-										}
-
-										if (this.settings.deleteOriginal) {
-											new Notice('Deleting original');
-											try {
-												await vault.delete(activeView);
-											} catch (error) {
-												console.error(error);
-											}
-										}
-
-										try {
-											const file = await vault.create(
-												path + activeView.name.split('.')[0] + '.md',
-												markdown
-											);
-											new Notice(
-												'Markdown file created: ' +
-													path +
-													activeView.name.split('.')[0] +
-													'.md'
-											);
-
-											// open the file in the editor
-											this.app.workspace.openLinkText(file.path, '', true);
-
-											if (this.settings.writeMetadata) {
-												let frontmatter = '---\n';
-												Object.entries(metadata).forEach(([key, value]) => {
-													if (
-														key.endsWith('stats') ||
-														key !== 'postprocess_stats'
-													) {
-														// value = JSON.parse(value);
-														Object.entries(value).forEach(([k, v]) => {
-															if (k === 'equations') {
-																frontmatter += `${key} - ${k}: ${JSON.stringify(
-																	v
-																)}\n`;
-															} else {
-																frontmatter += `${key} - ${k}: ${v}\n`;
-															}
-														});
-													} else frontmatter += `${key}: ${value}\n`;
-												});
-												frontmatter += '---\n';
-												try {
-													await vault.modify(file, frontmatter + markdown);
-												} catch (error) {
-													console.error(error);
-												}
-											}
-										} catch (error) {
-											console.error(error);
-										}
-									}
-								);
-							})
-							.catch((error) => {
-								console.error(error);
-							});
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
+				if (checking) {
 					return true;
 				}
+
+				this.convertPDFToMD();
 			},
 		});
+	}
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+	private async convertPDFToMD(): Promise<boolean> {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			return false;
+		}
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+		if (!this.checkSettings()) {
+			return false;
+		}
 
-		// // When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		try {
+			const folderPath = await this.handleFolderCreation(activeFile);
+			if (!folderPath) {
+				return true; // User cancelled the operation because folder exists
+			}
+
+			if (
+				this.settings.extractContent === 'images' ||
+				this.settings.extractContent === 'all'
+			) {
+				const shouldOverwrite = await this.checkForExistingFiles(folderPath);
+				if (!shouldOverwrite) {
+					return true; // User chose not to overwrite
+				}
+			}
+
+			const pdfContent = await this.app.vault.readBinary(activeFile);
+			if (
+				this.settings.extractContent === 'text' ||
+				this.settings.extractContent === 'all'
+			) {
+				new Notice('Converting PDF to Markdown...', 10000);
+			} else {
+				new Notice('Extracting images from PDF...', 10000);
+			}
+			const conversionResult = await this.convertPDFContent(pdfContent);
+			await this.processConversionResult(
+				conversionResult,
+				folderPath,
+				activeFile
+			);
+
+			new Notice('PDF conversion completed successfully');
+		} catch (error) {
+			console.error('Error during PDF conversion:', error);
+			new Notice('Error during PDF conversion. Check console for details.');
+		}
+
+		return true;
+	}
+
+	private async handleFolderCreation(
+		activeFile: TFile
+	): Promise<string | null> {
+		if (!this.settings.createFolder) {
+			return ''; // TODO: Missing path here
+		}
+
+		const folderPath = activeFile.path.split('.')[0];
+		const folder = this.app.vault.getFolderByPath(folderPath);
+
+		if (folder instanceof TFolder) {
+			return new Promise((resolve) => {
+				new MarkerOkayCancelDialog(
+					this.app,
+					'Folder already exists!',
+					`The folder "${folderPath}" already exists. Do you want to integrate the files into this folder?`,
+					(result) => resolve(result ? folderPath + '/' : null)
+				).open();
+			});
+		} else {
+			await this.app.vault.createFolder(folderPath);
+			new Notice(`Folder created: ${folderPath}`);
+			return folderPath + '/';
+		}
+	}
+
+	private async checkForExistingFiles(folderPath: string): Promise<boolean> {
+		const existingFiles = this.app.vault
+			.getFiles()
+			.filter((file) => file.path.startsWith(folderPath));
+		if (existingFiles.length > 0) {
+			return new Promise((resolve) => {
+				new MarkerOkayCancelDialog(
+					this.app,
+					'Existing files found',
+					'Some files already exist in the target folder. Do you want to overwrite them / integrate the new files into this folder?',
+					resolve
+				).open();
+			});
+		}
+		return true;
+	}
+
+	private async convertPDFContent(pdfContent: ArrayBuffer): Promise<any> {
+		const formData = new FormData();
+		formData.append(
+			'pdf_file',
+			new Blob([pdfContent], { type: 'application/pdf' }),
+			'document.pdf'
+		);
+		formData.append(
+			'extract_images',
+			this.settings.extractContent !== 'text' ? 'true' : 'false'
+		);
+
+		const response = await fetch(
+			`http://${this.settings.markerEndpoint}/convert`,
+			{
+				method: 'POST',
+				body: formData,
+			}
+		);
+
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
+
+		return response.json();
+	}
+
+	private async processConversionResult(
+		data: any[],
+		folderPath: string,
+		originalFile: TFile
+	) {
+		for (const converted of data) {
+			console.log(this.settings.extractContent);
+			if (this.settings.extractContent !== 'images') {
+				await this.createMarkdownFile(
+					converted.markdown,
+					folderPath,
+					originalFile
+				);
+			}
+			if (this.settings.extractContent !== 'text') {
+				await this.createImageFiles(converted.images, folderPath);
+			}
+			if (this.settings.writeMetadata) {
+				await this.addMetadataToMarkdownFile(
+					converted.metadata,
+					folderPath,
+					originalFile
+				);
+			}
+		}
+
+		if (this.settings.deleteOriginal) {
+			await this.deleteOriginalFile(originalFile);
+		}
+	}
+
+	private async createMarkdownFile(
+		markdown: string,
+		folderPath: string,
+		originalFile: TFile
+	) {
+		const fileName = originalFile.name.split('.')[0] + '.md';
+		const filePath = folderPath + fileName;
+		let file: TFile;
+		if (this.app.vault.getFileByPath(filePath) instanceof TFile) {
+			file = this.app.vault.getFileByPath(filePath) as TFile;
+			await this.app.vault.modify(file, markdown);
+		} else {
+			console.log('Creating new file');
+			file = (await this.app.vault.create(filePath, markdown)) as TFile;
+		}
+		new Notice(`Markdown file created: ${fileName}`);
+		this.app.workspace.openLinkText(file.path, '', true);
+	}
+
+	private async createImageFiles(
+		images: { [key: string]: string },
+		folderPath: string
+	) {
+		for (const [imageName, imageBase64] of Object.entries(images)) {
+			const imageArrayBuffer = this.base64ToArrayBuffer(imageBase64);
+			await this.app.vault.createBinary(
+				folderPath + imageName,
+				imageArrayBuffer
+			);
+		}
+		new Notice(`Image files created successfully`);
+	}
+
+	private async addMetadataToMarkdownFile(
+		metadata: { [key: string]: any },
+		folderPath: string,
+		originalFile: TFile
+	) {
+		const fileName = originalFile.name.split('.')[0] + '.md';
+		const filePath = folderPath + fileName;
+		const file = this.app.vault.getAbstractFileByPath(filePath);
+		if (file instanceof TFile) {
+			const content = await this.app.vault.read(file);
+			const frontmatter = this.generateFrontmatter(metadata);
+			await this.app.vault.modify(file, frontmatter + content);
+		}
+	}
+
+	private generateFrontmatter(metadata: { [key: string]: any }): string {
+		let frontmatter = '---\n';
+		const frontmatterKeys = [
+			'languages',
+			'filetype',
+			'ocr_stats',
+			'block_stats',
+		];
+		for (const [key, value] of Object.entries(metadata)) {
+			if (frontmatterKeys.includes(key)) {
+				if (key === 'ocr_stats' || key === 'block_stats') {
+					for (const [k, v] of Object.entries(value)) {
+						frontmatter += `${k}: ${
+							k === 'equations'
+								? JSON.stringify(v).slice(1, -1).replace(/"/g, '')
+								: v
+						}\n`;
+					}
+				} else {
+					frontmatter += `${key}: ${value}\n`;
+				}
+			}
+		}
+		frontmatter += '---\n';
+		return frontmatter;
+	}
+
+	private async deleteOriginalFile(file: TFile) {
+		try {
+			await this.app.vault.delete(file);
+			new Notice('Original PDF file deleted');
+		} catch (error) {
+			console.error('Error deleting original file:', error);
+		}
+	}
+
+	private checkSettings(): boolean {
+		if (!this.settings.markerEndpoint) {
+			new Notice('Err: Marker API endpoint not set');
+			return false;
+		}
+		if (
+			this.settings.extractContent !== 'text' &&
+			this.settings.extractContent !== 'images' &&
+			this.settings.extractContent !== 'all'
+		) {
+			new Notice('Err: Invalid content extraction setting for Marker');
+			return false;
+		}
+		return true;
+	}
+
+	private base64ToArrayBuffer(base64: string): ArrayBuffer {
+		const binaryString = window.atob(base64);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		return bytes.buffer;
 	}
 
 	onunload() {}
@@ -285,6 +361,36 @@ class SampleSettingTab extends PluginSettingTab {
 						this.plugin.settings.markerEndpoint = value;
 						await this.plugin.saveSettings();
 					})
+			)
+			.addButton((button) =>
+				button.setButtonText('Test Connection').onClick(() => {
+					try {
+						const request = new FormData();
+						request.append('pdf_file', new Blob(), 'test.pdf');
+						request.append('extract_images', 'false');
+
+						fetch(`http://${this.plugin.settings.markerEndpoint}/convert`, {
+							method: 'POST',
+							body: request,
+						})
+							.then((response) => {
+								if (response.status !== 200) {
+									new Notice(
+										`Error connecting to Marker API: ${response.status}`
+									);
+								} else {
+									new Notice('Connection successful!');
+								}
+							})
+							.catch((error) => {
+								new Notice('Error connecting to Marker API');
+								console.error('Error connecting to Marker API:', error);
+							});
+					} catch (error) {
+						new Notice('Error connecting to Marker API');
+						console.error('Error connecting to Marker API:', error);
+					}
+				})
 			);
 
 		// setting for how to bundle the pdf (options are new folder for each pdf or everything in the current folder)
@@ -296,6 +402,63 @@ class SampleSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.createFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.createFolder = value;
+						await this.plugin.saveSettings();
+						updateMovePDFSetting(value);
+					})
+			);
+
+		// setting for whether to move the pdf to the folder
+		const movePDFToggle = new Setting(containerEl)
+			.setName('Move PDF to Folder')
+			.setDesc('Move the PDF to the folder after conversion')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.movePDFtoFolder)
+					.onChange(async (value) => {
+						this.plugin.settings.movePDFtoFolder = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// setting for whether to create an asset subfolder
+		new Setting(containerEl)
+			.setName('Create Asset Subfolder')
+			.setDesc('Create an asset subfolder for images')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.createAssetSubfolder)
+					.onChange(async (value) => {
+						this.plugin.settings.createAssetSubfolder = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// setting for which content to extract from the pdf
+		new Setting(containerEl)
+			.setName('Extract Content')
+			.setDesc('Select the content to extract from the PDF')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('all', 'Extract everything')
+					.addOption('text', 'Text Only')
+					.addOption('images', 'Images Only')
+					.setValue(this.plugin.settings.extractContent)
+					.onChange(async (value) => {
+						this.plugin.settings.extractContent = value;
+						await this.plugin.saveSettings();
+						updateWriteMetadataSetting(value);
+					})
+			);
+
+		// setting for whether to write metadata as frontmatter in the markdown file
+		const writeMetadataToggle = new Setting(containerEl)
+			.setName('Write Metadata')
+			.setDesc('Write metadata as frontmatter in the markdown file')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.writeMetadata)
+					.onChange(async (value) => {
+						this.plugin.settings.writeMetadata = value;
 						await this.plugin.saveSettings();
 					})
 			);
@@ -313,34 +476,23 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// setting for which content to extract from the pdf
-		new Setting(containerEl)
-			.setName('Extract Content')
-			.setDesc('Select the content to extract from the PDF')
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption('All', 'all')
-					.addOption('Text Only', 'text')
-					.addOption('Images Only', 'images')
-					.setValue(this.plugin.settings.extractContent)
-					.onChange(async (value) => {
-						this.plugin.settings.extractContent = value;
-						await this.plugin.saveSettings();
-					})
-			);
+		// Helper function to update the state of the 'Move PDF to Folder' setting
+		const updateMovePDFSetting = (createFolderEnabled: boolean) => {
+			this.plugin.settings.movePDFtoFolder = false;
+			movePDFToggle.settingEl.toggle(createFolderEnabled);
+		};
 
-		// setting for whether to write metadata as frontmatter in the markdown file
-		new Setting(containerEl)
-			.setName('Write Metadata')
-			.setDesc('Write metadata as frontmatter in the markdown file')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.writeMetadata)
-					.onChange(async (value) => {
-						this.plugin.settings.writeMetadata = value;
-						await this.plugin.saveSettings();
-					})
-			);
+		// Helper function to update the state of the 'Write Metadata' setting
+		const updateWriteMetadataSetting = (extractContent: string) => {
+			this.plugin.settings.writeMetadata = false;
+			if (extractContent === 'all' || extractContent === 'text') {
+				this.plugin.settings.writeMetadata = true;
+			}
+			writeMetadataToggle.settingEl.toggle(this.plugin.settings.writeMetadata);
+		};
+
+		updateMovePDFSetting(this.plugin.settings.createFolder);
+		updateWriteMetadataSetting(this.plugin.settings.extractContent);
 	}
 }
 
@@ -348,13 +500,13 @@ export class MarkerOkayCancelDialog extends Modal {
 	result: boolean;
 	title: string;
 	message: string;
-	onSubmit: (result: boolean) => Promise<void>;
+	onSubmit: (result: boolean) => void;
 
 	constructor(
 		app: App,
 		title: string,
 		message: string,
-		onSubmit: (result: boolean) => Promise<void>
+		onSubmit: (result: boolean) => void
 	) {
 		super(app);
 		this.onSubmit = onSubmit;
