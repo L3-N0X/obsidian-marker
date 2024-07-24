@@ -4,8 +4,8 @@ import {
 	PluginSettingTab,
 	Setting,
 	Notice,
-	TFolder,
 	Modal,
+	TFolder,
 } from 'obsidian';
 
 // Remember to rename these classes and interfaces!
@@ -32,6 +32,16 @@ export default class Marker extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		const { vault } = this.app;
+
+		function base64ToArrayBuffer(base64: string): ArrayBuffer {
+			const binaryString = window.atob(base64);
+			const len = binaryString.length;
+			const bytes = new Uint8Array(len);
+			for (let i = 0; i < len; i++) {
+				bytes[i] = binaryString.charCodeAt(i);
+			}
+			return bytes.buffer;
+		}
 
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
@@ -84,7 +94,7 @@ export default class Marker extends Plugin {
 									async (converted: {
 										markdown: string;
 										metadata: { [key: string]: string };
-										images: Array<{ name: string; base64: string }>;
+										images: { [key: string]: string };
 									}): Promise<void> => {
 										const markdown = converted.markdown;
 										const metadata = converted.metadata;
@@ -97,49 +107,62 @@ export default class Marker extends Plugin {
 										let path = '';
 
 										if (this.settings.createFolder) {
-											if (
-												vault.getAbstractFileByPath(
-													activeView.path.split('.')[0] + '/'
-												) instanceof TFolder
-											) {
-												new FolderExists(this.app, (result) => {
-													if (result) {
-														path = activeView.path.split('.')[0] + '/';
-													} else {
-														return;
-													}
-												}).open();
+											// check if folder exists
+											const folder = vault.getFolderByPath(
+												activeView.path.split('.')[0]
+											);
+											if (folder instanceof TFolder) {
+												await new Promise((resolve, reject) => {
+													new MarkerOkayCancelDialog(
+														this.app,
+														'Folder already exists!',
+														'The folder with the name "' +
+															activeView.path.split('.')[0] +
+															'" already exists. Do you want to integrate the files into this folder?',
+														(result) => {
+															if (result) {
+																path = activeView.path.split('.')[0] + '/';
+																resolve();
+															} else {
+																new Notice('Conversion cancelled');
+																reject('Conversion cancelled by user');
+															}
+														}
+													).open();
+												});
 											} else {
-												try {
-													await vault.createFolder(
-														activeView.path.split('.')[0] + '/'
-													);
-													path = activeView.path.split('.')[0] + '/';
-													new Notice('Folder created' + path);
-												} catch (error) {
-													console.error(error);
-												}
+												await vault
+													.createFolder(activeView.path.split('.')[0] + '/')
+													.then(folder)
+													.catch(async (error) => {
+														console.error(error);
+													});
+												path = activeView.path.split('.')[0] + '/';
+												new Notice('Folder created' + path);
 											}
 										}
 
+										// wait for use to choose wether to integrate files into folder
+
 										if (this.settings.extractContent !== 'text') {
-											new Notice('Extracting content');
-											if (images.length > 0) {
-												await Promise.all(
-													images.map(
-														async (image: { name: string; base64: string }) => {
-															try {
-																await vault.create(
-																	path + image.name,
-																	image.base64
-																);
-															} catch (error) {
-																console.error(error);
-															}
-														}
-													)
-												);
-											}
+											Object.entries(images).forEach(async ([key, value]) => {
+												const image_name = key;
+												const image_base64 = value;
+
+												const imageArrayBuffer =
+													base64ToArrayBuffer(image_base64);
+
+												vault
+													.createBinary(path + image_name, imageArrayBuffer)
+													.then(() => {
+														new Notice(
+															'Image file created: ' + path + image_name
+														);
+													})
+													.catch((error) => {
+														console.error(error);
+													});
+											});
 										}
 
 										if (this.settings.deleteOriginal) {
@@ -151,7 +174,6 @@ export default class Marker extends Plugin {
 											}
 										}
 
-										new Notice('Saving markdown');
 										try {
 											const file = await vault.create(
 												path + activeView.name.split('.')[0] + '.md',
@@ -164,19 +186,27 @@ export default class Marker extends Plugin {
 													'.md'
 											);
 
-											try {
-												await this.app.workspace.openLinkText(
-													'pdf',
-													path + activeView.name.split('.')[0] + '.md'
-												);
-											} catch (error) {
-												console.error(error);
-											}
+											// open the file in the editor
+											this.app.workspace.openLinkText(file.path, '', true);
 
 											if (this.settings.writeMetadata) {
 												let frontmatter = '---\n';
 												Object.entries(metadata).forEach(([key, value]) => {
-													frontmatter += `${key}: ${value}\n`;
+													if (
+														key.endsWith('stats') ||
+														key !== 'postprocess_stats'
+													) {
+														// value = JSON.parse(value);
+														Object.entries(value).forEach(([k, v]) => {
+															if (k === 'equations') {
+																frontmatter += `${key} - ${k}: ${JSON.stringify(
+																	v
+																)}\n`;
+															} else {
+																frontmatter += `${key} - ${k}: ${v}\n`;
+															}
+														});
+													} else frontmatter += `${key}: ${value}\n`;
 												});
 												frontmatter += '---\n';
 												try {
@@ -314,31 +344,51 @@ class SampleSettingTab extends PluginSettingTab {
 	}
 }
 
-export class FolderExists extends Modal {
+export class MarkerOkayCancelDialog extends Modal {
 	result: boolean;
-	onSubmit: (result: boolean) => void;
+	title: string;
+	message: string;
+	onSubmit: (result: boolean) => Promise<void>;
 
-	constructor(app: App, onSubmit: (result: boolean) => void) {
+	constructor(
+		app: App,
+		title: string,
+		message: string,
+		onSubmit: (result: boolean) => Promise<void>
+	) {
 		super(app);
 		this.onSubmit = onSubmit;
+		this.title = title;
+		this.message = message;
 	}
 
 	onOpen() {
 		const { contentEl } = this;
-		contentEl.createEl('h2', { text: 'Folder already exists' });
+		contentEl.createEl('h2', { text: this.title });
 		contentEl.createEl('p', {
-			text: 'The folder already exists! Do you want to continue?',
+			text: this.message,
 		});
 
-		new Setting(contentEl).addButton((btn) =>
-			btn
-				.setButtonText('Submit')
-				.setCta()
-				.onClick(() => {
-					this.close();
-					this.onSubmit(this.result);
-				})
-		);
+		const buttonContainer = contentEl.createEl('div', {
+			attr: { class: 'modal-button-container' },
+		});
+		const yesButton = buttonContainer.createEl('button', {
+			text: 'Okay',
+			attr: { class: 'mod-cta' },
+		});
+		yesButton.addEventListener('click', () => {
+			this.result = true;
+			this.onSubmit(true);
+			this.close();
+		});
+		const noButton = buttonContainer.createEl('button', {
+			text: 'Cancel',
+		});
+		noButton.addEventListener('click', () => {
+			this.result = false;
+			this.onSubmit(false);
+			this.close();
+		});
 	}
 
 	onClose() {
