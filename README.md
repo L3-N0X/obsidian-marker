@@ -1,6 +1,6 @@
 ![title-banner](assets/title-banner.png)
 
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-a27ded.svg)](https://GitHub.com/L3-N0X/obsidian-marker/graphs/commit-activity)
+[![Maintenance](https://img.shields.io/badge/Maintained-yes-a27ded.svg)](https://GitHub.com/L3-N0X/obsidian-marker/graphs/commit-activity)
 [![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg?color=a27ded)](https://github.com/L3-N0X/obsidian-marker/issues)
 [![GitHub Release](https://img.shields.io/github/v/release/L3-N0X/obsidian-marker?color=a27ded&link=https%3A%2F%2Fgithub.com%2FL3-N0X%2Fobsidian-marker%2Freleases)](https://github.com/L3-N0X/obsidian-marker/releases)
 [![GitHub License](https://img.shields.io/github/license/L3-N0X/obsidian-marker?color=a27ded)](https://github.com/L3-N0X/obsidian-marker/blob/master/LICENSE)
@@ -34,9 +34,12 @@ You can find the related repositories here:
 3. **Customizable**: Tailor the conversion process to your specific needs
 4. **Obsidian Integration**: Converts PDFs directly within your Obsidian environment
 
-> [!NOTE]
-> If you enjoy this extension, feel free to star the repository and share it with others!
-> If you want to support my work, consider [buying me a coffee](https://www.buymeacoffee.com/l3n0x) ☕️ or sponsoring me on GitHub 🌟
+## ♥️ Support the Project
+
+If you enjoy this extension, feel free to star the repository and share it with others!
+When you want to support the development, consider buying me a coffee:
+
+<a href="https://www.buymeacoffee.com/l3n0x"><img src="https://img.buymeacoffee.com/button-api/?slug=l3n0x&font_family=Inter&button_colour=FFDD00"></a>
 
 ## 📋 Requirements
 

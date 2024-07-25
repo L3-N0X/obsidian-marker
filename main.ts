@@ -545,6 +545,13 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
+		// add my buymeacoffee link
+		const supportButton = containerEl.createEl('div');
+		supportButton.style.textAlign = 'center';
+		supportButton.style.marginTop = '20px';
+		supportButton.innerHTML =
+			"<a href='https://www.buymeacoffee.com/l3n0x'><img src='https://img.buymeacoffee.com/button-api/?slug=l3n0x&font_family=Inter&button_colour=FFDD00'></a>";
+
 		// Helper function to update the state of the 'Move PDF to Folder' setting
 		const updateMovePDFSetting = (createFolderEnabled: boolean) => {
 			this.plugin.settings.movePDFtoFolder = false;
