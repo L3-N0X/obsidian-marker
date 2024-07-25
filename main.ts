@@ -240,7 +240,6 @@ export default class Marker extends Plugin {
 				);
 			}
 			if (this.settings.movePDFtoFolder) {
-				// TODO: check if this is working
 				const newFilePath = folderPath + originalFile.name;
 				await this.app.vault.rename(originalFile, newFilePath);
 			}
@@ -262,7 +261,10 @@ export default class Marker extends Plugin {
 
 		// change markdown image links when asset subfolder is created
 		if (this.settings.createAssetSubfolder) {
-			markdown = markdown.replace(/!\[.*\]\((.*)\)/g, `![$1](assets/$1)`);
+			markdown = markdown.replace(
+				/!\[.*\]\((.*)\)/g,
+				`![$1](assets/${originalFile.name.replace('.pdf', '_')}$1)`
+			);
 		}
 		// remove images when only text is extracted
 		if (this.settings.extractContent === 'text') {
