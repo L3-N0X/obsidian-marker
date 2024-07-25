@@ -2,7 +2,6 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/L3-N0X/obsidian-marker/graphs/commit-activity)
 ![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg)
-[![GitHub license](https://img.shields.io/github/license/L3-N0X/obsidian-marker.svg)](https://github.com/L3-N0X/obsidian-marker/blob/master/LICENSE)
 
 ## 🌟 Introduction
 
@@ -72,10 +71,6 @@ If you encounter issues related to the extension itself, please open an issue in
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/L3-N0X/obsidian-marker/issues).
-
-## 📄 License
-
-This project is licensed under the [MIT License](link-to-your-license-file).
 
 ---
 
