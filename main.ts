@@ -416,11 +416,11 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// header for the settings tab
-		containerEl.createEl('h1', { text: 'Settings for Marker PDF to MD' });
+		new Setting(containerEl).setName('Marker PDF to MD').setHeading();
 
 		// setting for the marker api endpoint
 		new Setting(containerEl)
-			.setName('Marker API Endpoint')
+			.setName('Marker API endpoint')
 			.setDesc('The endpoint to use for the marker api.')
 			.addText((text) =>
 				text
@@ -464,7 +464,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		// setting for how to bundle the pdf (options are new folder for each pdf or everything in the current folder)
 		new Setting(containerEl)
-			.setName('Create a new folder for each PDF')
+			.setName('New folder for each PDF')
 			.setDesc('Create a new folder for each PDF that is converted.')
 			.addToggle((toggle) =>
 				toggle
@@ -478,7 +478,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		// setting for whether to move the pdf to the folder
 		const movePDFToggle = new Setting(containerEl)
-			.setName('Move PDF to Folder')
+			.setName('Move PDF to folder')
 			.setDesc('Move the PDF to the folder after conversion')
 			.addToggle((toggle) =>
 				toggle
@@ -491,7 +491,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		// setting for whether to create an asset subfolder
 		new Setting(containerEl)
-			.setName('Create Asset Subfolder')
+			.setName('Create asset subfolder')
 			.setDesc('Create an asset subfolder for images')
 			.addToggle((toggle) =>
 				toggle
@@ -504,7 +504,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		// setting for which content to extract from the pdf
 		new Setting(containerEl)
-			.setName('Extract Content')
+			.setName('Extract content')
 			.setDesc('Select the content to extract from the PDF')
 			.addDropdown((dropdown) =>
 				dropdown
@@ -521,7 +521,7 @@ class SampleSettingTab extends PluginSettingTab {
 
 		// setting for whether to write metadata as frontmatter in the markdown file
 		const writeMetadataToggle = new Setting(containerEl)
-			.setName('Write Metadata')
+			.setName('Write metadata')
 			.setDesc('Write metadata as frontmatter in the markdown file')
 			.addToggle((toggle) =>
 				toggle
