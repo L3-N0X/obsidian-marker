@@ -119,7 +119,7 @@ export default class Marker extends Plugin {
 				activeFile
 			);
 
-			new Notice('PDF conversion completed successfully');
+			new Notice('PDF conversion completed');
 		} catch (error) {
 			console.error('Error during PDF conversion:', error);
 			new Notice('Error during PDF conversion. Check console for details.');
@@ -151,7 +151,6 @@ export default class Marker extends Plugin {
 			});
 		} else {
 			await this.app.vault.createFolder(folderPath);
-			new Notice(`Folder created: ${folderPath}`);
 			return folderPath;
 		}
 	}
@@ -372,7 +371,9 @@ export default class Marker extends Plugin {
 			this.settings.extractContent !== 'images' &&
 			this.settings.extractContent !== 'all'
 		) {
-			new Notice('Err: Invalid content extraction setting for Marker');
+			new Notice(
+				'Err: Invalid content extraction setting for Marker, check settings'
+			);
 			return false;
 		}
 		return true;
