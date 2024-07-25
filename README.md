@@ -26,6 +26,10 @@ Welcome to the Obsidian PDF to Markdown Converter! This extension brings the pow
 3. **Customizable**: Tailor the conversion process to your specific needs
 4. **Obsidian Integration**: Converts PDFs directly within your Obsidian environment
 
+> [!NOTE]
+> If you enjoy this extension, feel free to star the repository and share it with others!
+> If you want to support my work, consider [buying me a coffee](https://www.buymeacoffee.com/l3n0x) ☕️ or sponsoring me on GitHub 🌟
+
 ## 📋 Requirements
 
 To use this extension, you'll need:
