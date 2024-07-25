@@ -1,10 +1,17 @@
 # 📚 Obsidian PDF to Markdown Converter
 
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/L3-N0X/obsidian-marker.js/graphs/commit-activity)
+![Maintainer](https://img.shields.io/badge/maintainer-L3-N0X-blue)
+![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg)
+[![GitHub license](https://img.shields.io/github/license/L3-N0X/obsidian-marker.js.svg)](https://github.com/L3-N0X/obsidian-marker.js/blob/master/LICENSE)
+
+
 ## 🌟 Introduction
 
 Welcome to the Obsidian PDF to Markdown Converter! This extension brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of the Marker API, this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files.
 
-> 📢 **Important**: This extension requires a Marker API endpoint to function. Without an endpoint, the application won't work.
+> [!IMPORTANT]
+> This extension requires a Marker API endpoint to function. Without an endpoint, the application won't work.
 
 ## 🚀 Features
 
@@ -75,3 +82,11 @@ This project is licensed under the [MIT License](link-to-your-license-file).
 ---
 
 Happy converting! 📚➡️📝
+
+---
+
+<p align="center">
+  <a href="https://l3n0x.eu5.org">
+    <img src="https://api.star-history.com/svg?repos=l3-n0x/obsidian-marker&type=Date" alt="Star History Chart">
+  </a>
+</p>
