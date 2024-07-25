@@ -1,7 +1,7 @@
 # 📚 Obsidian PDF to Markdown Converter
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/L3-N0X/obsidian-marker.js/graphs/commit-activity)
-![Maintainer](https://img.shields.io/badge/maintainer-L3\-N0X-blue)
+![Maintainer](https://img.shields.io/badge/maintainer-"L3-N0X"-blue)
 ![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg)
 [![GitHub license](https://img.shields.io/github/license/L3-N0X/obsidian-marker.js.svg)](https://github.com/L3-N0X/obsidian-marker.js/blob/master/LICENSE)
 
