@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: MarkerSettings = {
 	deleteOriginal: false,
 	extractContent: 'all',
 	writeMetadata: true,
-	movePDFtoFolder: false, // TODO: Implement this
+	movePDFtoFolder: false,
 	createAssetSubfolder: true, // TODO: Implement this
 };
 
@@ -199,7 +199,13 @@ export default class Marker extends Plugin {
 				);
 			}
 			if (this.settings.extractContent !== 'text') {
-				await this.createImageFiles(converted.images, folderPath);
+				let imageFolderPath = folderPath;
+				if (this.settings.createAssetSubfolder) {
+					// TODO: cvheck if this is working
+					await this.app.vault.createFolder(folderPath + 'assets/');
+					imageFolderPath += 'assets/';
+				}
+				await this.createImageFiles(converted.images, imageFolderPath);
 			}
 			if (this.settings.writeMetadata) {
 				await this.addMetadataToMarkdownFile(
@@ -207,6 +213,11 @@ export default class Marker extends Plugin {
 					folderPath,
 					originalFile
 				);
+			}
+			if (this.settings.movePDFtoFolder) {
+				// TODO: check if this is working
+				const newFilePath = folderPath + originalFile.name;
+				await this.app.vault.rename(originalFile, newFilePath);
 			}
 		}
 
@@ -223,6 +234,12 @@ export default class Marker extends Plugin {
 		const fileName = originalFile.name.split('.')[0] + '.md';
 		const filePath = folderPath + fileName;
 		let file: TFile;
+
+		// change markdown image links when asset subfolder is created
+		if (this.settings.createAssetSubfolder) {
+			markdown = markdown.replace(/!\[.*\]\((.*)\)/g, `![$1](assets/$1)`);
+		}
+
 		if (this.app.vault.getFileByPath(filePath) instanceof TFile) {
 			file = this.app.vault.getFileByPath(filePath) as TFile;
 			await this.app.vault.modify(file, markdown);
