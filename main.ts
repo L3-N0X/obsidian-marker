@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: MarkerSettings = {
 	extractContent: 'all',
 	writeMetadata: true,
 	movePDFtoFolder: false,
-	createAssetSubfolder: true, // TODO: Implement this
+	createAssetSubfolder: true,
 };
 
 export default class Marker extends Plugin {
@@ -39,10 +39,8 @@ export default class Marker extends Plugin {
 		await this.loadSettings();
 		this.addCommands();
 		this.addSettingTab(new SampleSettingTab(this.app, this));
-		console.log('loaded plugin: Marker');
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu, file, source) => {
-				console.log('file-menu');
 				if (!file.name.endsWith('.pdf')) {
 					return;
 				}
@@ -208,7 +206,6 @@ export default class Marker extends Plugin {
 		originalFile: TFile
 	) {
 		for (const converted of data) {
-			console.log(this.settings.extractContent);
 			if (this.settings.extractContent !== 'images') {
 				await this.createMarkdownFile(
 					converted.markdown,
@@ -219,11 +216,6 @@ export default class Marker extends Plugin {
 			if (this.settings.extractContent !== 'text') {
 				let imageFolderPath = folderPath;
 				if (this.settings.createAssetSubfolder) {
-					console.log(
-						'asset subfolder',
-						folderPath + 'assets',
-						this.app.vault.getAbstractFileByPath(folderPath + 'assets')
-					);
 					if (
 						!(
 							this.app.vault.getAbstractFileByPath(
@@ -282,7 +274,6 @@ export default class Marker extends Plugin {
 			file = this.app.vault.getFileByPath(filePath) as TFile;
 			await this.app.vault.modify(file, markdown);
 		} else {
-			console.log('Creating new file');
 			file = (await this.app.vault.create(filePath, markdown)) as TFile;
 		}
 		new Notice(`Markdown file created: ${fileName}`);
@@ -297,7 +288,6 @@ export default class Marker extends Plugin {
 		for (const [imageName, imageBase64] of Object.entries(images)) {
 			let newImageName = imageName;
 			if (this.settings.createAssetSubfolder) {
-				console.log('basename');
 				newImageName = originalFile.name.replace('.pdf', '_') + imageName;
 			}
 			const imageArrayBuffer = this.base64ToArrayBuffer(imageBase64);
