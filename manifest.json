@@ -1,11 +1,11 @@
 {
-	"id": "obsidian-marker",
-	"name": "Obsidian Marker",
+	"id": "marker-api",
+	"name": "Marker PDF to MD",
 	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "Convert PDFs to rich Markdown, including images and ocr using the marker api",
 	"author": "L3N0X",
-	"authorUrl": "https://obsidian.md",
+	"authorUrl": "https://github.com/L3-N0X",
 	"fundingUrl": {
 		"Buy Me a Coffee": "https://buymeacoffee.com/l3n0x",
 		"GitHub Sponsor": "https://github.com/sponsors/L3-N0X"
