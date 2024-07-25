@@ -114,12 +114,15 @@ export default class Marker extends Plugin {
 	private async handleFolderCreation(
 		activeFile: TFile
 	): Promise<string | null> {
-		if (!this.settings.createFolder) {
-			return ''; // TODO: Missing path here
-		}
+		const folderPath = activeFile.path.replace('.pdf', '/');
+		const folder = this.app.vault.getFolderByPath(activeFile.path);
 
-		const folderPath = activeFile.path.split('.')[0];
-		const folder = this.app.vault.getFolderByPath(folderPath);
+		console.log('folder path', folderPath);
+		console.log('folder', folder);
+
+		if (!this.settings.createFolder) {
+			return folder ? folder.path : '';
+		}
 
 		if (folder instanceof TFolder) {
 			return new Promise((resolve) => {
@@ -127,13 +130,13 @@ export default class Marker extends Plugin {
 					this.app,
 					'Folder already exists!',
 					`The folder "${folderPath}" already exists. Do you want to integrate the files into this folder?`,
-					(result) => resolve(result ? folderPath + '/' : null)
+					(result) => resolve(result ? folderPath : null)
 				).open();
 			});
 		} else {
 			await this.app.vault.createFolder(folderPath);
 			new Notice(`Folder created: ${folderPath}`);
-			return folderPath + '/';
+			return folderPath;
 		}
 	}
 
