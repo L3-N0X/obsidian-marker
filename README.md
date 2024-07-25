@@ -1,10 +1,10 @@
 ![title-banner](assets/title-banner.png)
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-a27ded.svg)](https://GitHub.com/L3-N0X/obsidian-marker/graphs/commit-activity)
-![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg?color=a27ded)
-![GitHub Release](https://img.shields.io/github/v/release/L3-N0X/obsidian-marker?color=a27ded&link=https%3A%2F%2Fgithub.com%2FL3-N0X%2Fobsidian-marker%2Freleases)
-![GitHub License](https://img.shields.io/github/license/L3-N0X/obsidian-marker?color=a27ded)
-![Marker API](https://img.shields.io/badge/Marker%20API-Required-a27ded.svg)
+[![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg?color=a27ded)](https://github.com/L3-N0X/obsidian-marker/issues)
+[![GitHub Release](https://img.shields.io/github/v/release/L3-N0X/obsidian-marker?color=a27ded&link=https%3A%2F%2Fgithub.com%2FL3-N0X%2Fobsidian-marker%2Freleases)](https://github.com/L3-N0X/obsidian-marker/releases)
+[![GitHub License](https://img.shields.io/github/license/L3-N0X/obsidian-marker?color=a27ded)](https://github.com/L3-N0X/obsidian-marker/blob/master/LICENSE)
+[![Marker API](https://img.shields.io/badge/Marker%20API-Required-a27ded.svg)](https://github.com/adithya-s-k/marker-api)
 
 ## 🌟 Introduction
 
@@ -12,6 +12,11 @@ Welcome to the Obsidian PDF to Markdown Converter! This extension brings the pow
 
 > [!IMPORTANT]
 > This extension requires a Marker API endpoint to function. Without an endpoint, the application won't work.
+
+You can find the related repositories here:
+
+- [Marker Project](https://github.com/VikParuchuri/marker) (AI model for PDF conversion)
+- [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
 
 ## 🚀 Features
 
