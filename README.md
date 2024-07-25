@@ -2,6 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-a27ded.svg)](https://GitHub.com/L3-N0X/obsidian-marker/graphs/commit-activity)
 ![GitHub issues](https://img.shields.io/github/issues/L3-N0X/obsidian-marker.svg)
+![Marker API](https://img.shields.io/badge/Marker%20API-Required-a27ded.svg)
 
 ## 🌟 Introduction
 

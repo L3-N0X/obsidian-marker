@@ -39,6 +39,22 @@ export default class Marker extends Plugin {
 		await this.loadSettings();
 		this.addCommands();
 		this.addSettingTab(new SampleSettingTab(this.app, this));
+		console.log('loaded plugin: Marker');
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu, file, source) => {
+				console.log('file-menu');
+				if (!file.name.endsWith('.pdf')) {
+					return;
+				}
+				menu.addItem((item) => {
+					item.setIcon('pdf-file');
+					item.setTitle('Convert PDF to MD');
+					item.onClick(async () => {
+						await this.convertPDFToMD(file as TFile);
+					});
+				});
+			})
+		);
 	}
 
 	private addCommands() {
@@ -55,13 +71,13 @@ export default class Marker extends Plugin {
 					return true;
 				}
 
-				this.convertPDFToMD();
+				this.convertPDFToMD(activeFile);
 			},
 		});
 	}
 
-	private async convertPDFToMD(): Promise<boolean> {
-		const activeFile = this.app.workspace.getActiveFile();
+	private async convertPDFToMD(file: TFile): Promise<boolean> {
+		const activeFile = file;
 		if (!activeFile) {
 			return false;
 		}
@@ -91,7 +107,10 @@ export default class Marker extends Plugin {
 				this.settings.extractContent === 'text' ||
 				this.settings.extractContent === 'all'
 			) {
-				new Notice('Converting PDF to Markdown...', 10000);
+				new Notice(
+					'Converting PDF to Markdown, this can take a few seconds...',
+					10000
+				);
 			} else {
 				new Notice('Extracting images from PDF...', 10000);
 			}
@@ -115,13 +134,12 @@ export default class Marker extends Plugin {
 		activeFile: TFile
 	): Promise<string | null> {
 		const folderPath = activeFile.path.replace('.pdf', '/');
-		const folder = this.app.vault.getFolderByPath(activeFile.path);
-
-		console.log('folder path', folderPath);
-		console.log('folder', folder);
+		const folder = this.app.vault.getFolderByPath(
+			activeFile.path.replace('.pdf', '')
+		);
 
 		if (!this.settings.createFolder) {
-			return folder ? folder.path : '';
+			return activeFile.path.replace(activeFile.name, '');
 		}
 
 		if (folder instanceof TFolder) {
@@ -201,11 +219,27 @@ export default class Marker extends Plugin {
 			if (this.settings.extractContent !== 'text') {
 				let imageFolderPath = folderPath;
 				if (this.settings.createAssetSubfolder) {
-					// TODO: cvheck if this is working
-					await this.app.vault.createFolder(folderPath + 'assets/');
+					console.log(
+						'asset subfolder',
+						folderPath + 'assets',
+						this.app.vault.getAbstractFileByPath(folderPath + 'assets')
+					);
+					if (
+						!(
+							this.app.vault.getAbstractFileByPath(
+								folderPath + 'assets'
+							) instanceof TFolder
+						)
+					) {
+						await this.app.vault.createFolder(folderPath + 'assets/');
+					}
 					imageFolderPath += 'assets/';
 				}
-				await this.createImageFiles(converted.images, imageFolderPath);
+				await this.createImageFiles(
+					converted.images,
+					imageFolderPath,
+					originalFile
+				);
 			}
 			if (this.settings.writeMetadata) {
 				await this.addMetadataToMarkdownFile(
@@ -239,6 +273,10 @@ export default class Marker extends Plugin {
 		if (this.settings.createAssetSubfolder) {
 			markdown = markdown.replace(/!\[.*\]\((.*)\)/g, `![$1](assets/$1)`);
 		}
+		// remove images when only text is extracted
+		if (this.settings.extractContent === 'text') {
+			markdown = markdown.replace(/!\[.*\]\(.*\)/g, '');
+		}
 
 		if (this.app.vault.getFileByPath(filePath) instanceof TFile) {
 			file = this.app.vault.getFileByPath(filePath) as TFile;
@@ -253,14 +291,32 @@ export default class Marker extends Plugin {
 
 	private async createImageFiles(
 		images: { [key: string]: string },
-		folderPath: string
+		folderPath: string,
+		originalFile: TFile
 	) {
 		for (const [imageName, imageBase64] of Object.entries(images)) {
+			let newImageName = imageName;
+			if (this.settings.createAssetSubfolder) {
+				console.log('basename');
+				newImageName = originalFile.name.replace('.pdf', '_') + imageName;
+			}
 			const imageArrayBuffer = this.base64ToArrayBuffer(imageBase64);
-			await this.app.vault.createBinary(
-				folderPath + imageName,
-				imageArrayBuffer
-			);
+			// check if image already exists, if so, overwrite it
+			if (
+				this.app.vault.getAbstractFileByPath(
+					folderPath + newImageName
+				) instanceof TFile
+			) {
+				const file = this.app.vault.getAbstractFileByPath(
+					folderPath + newImageName
+				) as TFile;
+				await this.app.vault.modifyBinary(file, imageArrayBuffer);
+			} else {
+				await this.app.vault.createBinary(
+					folderPath + newImageName,
+					imageArrayBuffer
+				);
+			}
 		}
 		new Notice(`Image files created successfully`);
 	}
