@@ -38,7 +38,7 @@ export default class Marker extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		this.addCommands();
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new MarkerSettingTab(this.app, this));
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu, file, source) => {
 				if (!file.name.endsWith('.pdf')) {
@@ -48,7 +48,9 @@ export default class Marker extends Plugin {
 					item.setIcon('pdf-file');
 					item.setTitle('Convert PDF to MD');
 					item.onClick(async () => {
-						await this.convertPDFToMD(file as TFile);
+						if (file instanceof TFile) {
+							await this.convertPDFToMD(file);
+						}
 					});
 				});
 			})
@@ -261,9 +263,12 @@ export default class Marker extends Plugin {
 
 		// change markdown image links when asset subfolder is created
 		if (this.settings.createAssetSubfolder) {
+			const cleanImagePath = encodeURIComponent(
+				originalFile.name.replace('.pdf', '_')
+			);
 			markdown = markdown.replace(
 				/!\[.*\]\((.*)\)/g,
-				`![$1](assets/${originalFile.name.replace('.pdf', '_')}$1)`
+				`![$1](assets/${cleanImagePath}$1)`
 			);
 		}
 		// remove images when only text is extracted
@@ -271,11 +276,12 @@ export default class Marker extends Plugin {
 			markdown = markdown.replace(/!\[.*\]\(.*\)/g, '');
 		}
 
-		if (this.app.vault.getFileByPath(filePath) instanceof TFile) {
-			file = this.app.vault.getFileByPath(filePath) as TFile;
+		const existingFile = this.app.vault.getAbstractFileByPath(filePath);
+		if (existingFile instanceof TFile) {
+			file = existingFile;
 			await this.app.vault.modify(file, markdown);
 		} else {
-			file = (await this.app.vault.create(filePath, markdown)) as TFile;
+			file = await this.app.vault.create(filePath, markdown);
 		}
 		new Notice(`Markdown file created: ${fileName}`);
 		this.app.workspace.openLinkText(file.path, '', true);
@@ -300,7 +306,11 @@ export default class Marker extends Plugin {
 			) {
 				const file = this.app.vault.getAbstractFileByPath(
 					folderPath + newImageName
-				) as TFile;
+				);
+				if (!(file instanceof TFile)) {
+					console.error('Error with image: ', file);
+					continue;
+				}
 				await this.app.vault.modifyBinary(file, imageArrayBuffer);
 			} else {
 				await this.app.vault.createBinary(
@@ -356,7 +366,7 @@ export default class Marker extends Plugin {
 
 	private async deleteOriginalFile(file: TFile) {
 		try {
-			await this.app.vault.delete(file);
+			await this.app.fileManager.trashFile(file);
 			new Notice('Original PDF file deleted');
 		} catch (error) {
 			console.error('Error deleting original file:', error);
@@ -401,8 +411,7 @@ export default class Marker extends Plugin {
 	}
 }
 
-// This is the settings tab in the obsidian settings page that allows users to configure various aspects of the plugin
-class SampleSettingTab extends PluginSettingTab {
+class MarkerSettingTab extends PluginSettingTab {
 	plugin: Marker;
 
 	constructor(app: App, plugin: Marker) {
@@ -544,13 +553,6 @@ class SampleSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
-
-		// add my buymeacoffee link
-		const supportButton = containerEl.createEl('div');
-		supportButton.style.textAlign = 'center';
-		supportButton.style.marginTop = '20px';
-		supportButton.innerHTML =
-			"<a href='https://www.buymeacoffee.com/l3n0x'><img src='https://img.buymeacoffee.com/button-api/?slug=l3n0x&font_family=Inter&button_colour=FFDD00'></a>";
 
 		// Helper function to update the state of the 'Move PDF to Folder' setting
 		const updateMovePDFSetting = (createFolderEnabled: boolean) => {
