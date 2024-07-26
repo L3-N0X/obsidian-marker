@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: MarkerSettings = {
 	createFolder: true,
 	deleteOriginal: false,
 	extractContent: 'all',
-	writeMetadata: true,
+	writeMetadata: false,
 	movePDFtoFolder: false,
 	createAssetSubfolder: true,
 };
@@ -133,10 +133,34 @@ export default class Marker extends Plugin {
 	private async handleFolderCreation(
 		activeFile: TFile
 	): Promise<string | null> {
-		const folderPath = activeFile.path.replace('.pdf', '/');
-		const folder = this.app.vault.getFolderByPath(
-			activeFile.path.replace('.pdf', '')
-		);
+		// only the name of the last folder with most depth
+
+		console.log('active file:', activeFile);
+
+		const folderName = activeFile.path
+			.replace(/\.pdf(?=[^.]*$)/, '')
+			.split('/')
+			.pop()
+			?.replace(/\./g, '-');
+
+		if (!folderName) {
+			return null;
+		}
+
+		const folderPath =
+			activeFile.path
+				.replace(/\.pdf(?=[^.]*$)/, '/')
+				.split('/')
+				.slice(0, -1)
+				.join('/') + '/';
+
+		const folder = folderPath
+			? this.app.vault.getFolderByPath(folderPath.replace(/\/$/, ''))
+			: undefined;
+
+		console.log('folder:', folder);
+		console.log('folder path:', folderPath);
+		console.log('folder name:', folderName);
 
 		if (!this.settings.createFolder) {
 			return activeFile.path.replace(activeFile.name, '');
@@ -216,7 +240,11 @@ export default class Marker extends Plugin {
 			}
 			if (this.settings.extractContent !== 'text') {
 				let imageFolderPath = folderPath;
-				if (this.settings.createAssetSubfolder) {
+				if (
+					this.settings.createAssetSubfolder &&
+					converted.images &&
+					Object.keys(converted.images).length > 0
+				) {
 					if (
 						!(
 							this.app.vault.getAbstractFileByPath(
@@ -263,9 +291,10 @@ export default class Marker extends Plugin {
 
 		// change markdown image links when asset subfolder is created
 		if (this.settings.createAssetSubfolder) {
-			const cleanImagePath = encodeURIComponent(
-				originalFile.name.replace('.pdf', '_')
-			);
+			const cleanImagePath = originalFile.name
+				.replace(/\.pdf(?=[^.]*$)/, '_')
+				.replace(/\s+/g, '%20');
+
 			markdown = markdown.replace(
 				/!\[.*\]\((.*)\)/g,
 				`![$1](assets/${cleanImagePath}$1)`
@@ -277,11 +306,13 @@ export default class Marker extends Plugin {
 		}
 
 		const existingFile = this.app.vault.getAbstractFileByPath(filePath);
+		console.log('existing file:', existingFile);
 		if (existingFile instanceof TFile) {
 			file = existingFile;
 			await this.app.vault.modify(file, markdown);
 		} else {
 			file = await this.app.vault.create(filePath, markdown);
+			console.log('created file:', file);
 		}
 		new Notice(`Markdown file created: ${fileName}`);
 		this.app.workspace.openLinkText(file.path, '', true);
@@ -295,7 +326,8 @@ export default class Marker extends Plugin {
 		for (const [imageName, imageBase64] of Object.entries(images)) {
 			let newImageName = imageName;
 			if (this.settings.createAssetSubfolder) {
-				newImageName = originalFile.name.replace('.pdf', '_') + imageName;
+				newImageName =
+					originalFile.name.replace(/\.pdf(?=[^.]*$)/, '_') + imageName;
 			}
 			const imageArrayBuffer = this.base64ToArrayBuffer(imageBase64);
 			// check if image already exists, if so, overwrite it
