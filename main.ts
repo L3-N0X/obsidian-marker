@@ -8,9 +8,8 @@ import {
 	Modal,
 	TFolder,
 	TFile,
+	base64ToArrayBuffer,
 } from 'obsidian';
-
-// Remember to rename these classes and interfaces!
 
 interface MarkerSettings {
 	markerEndpoint: string;
@@ -86,6 +85,10 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
+		if (!this.testConnection()) {
+			return false;
+		}
+
 		try {
 			const folderPath = await this.handleFolderCreation(activeFile);
 			if (!folderPath) {
@@ -133,10 +136,6 @@ export default class Marker extends Plugin {
 	private async handleFolderCreation(
 		activeFile: TFile
 	): Promise<string | null> {
-		// only the name of the last folder with most depth
-
-		console.log('active file:', activeFile);
-
 		const folderName = activeFile.path
 			.replace(/\.pdf(?=[^.]*$)/, '')
 			.split('/')
@@ -157,10 +156,6 @@ export default class Marker extends Plugin {
 		const folder = folderPath
 			? this.app.vault.getFolderByPath(folderPath.replace(/\/$/, ''))
 			: undefined;
-
-		console.log('folder:', folder);
-		console.log('folder path:', folderPath);
-		console.log('folder name:', folderName);
 
 		if (!this.settings.createFolder) {
 			return activeFile.path.replace(activeFile.name, '');
@@ -306,13 +301,11 @@ export default class Marker extends Plugin {
 		}
 
 		const existingFile = this.app.vault.getAbstractFileByPath(filePath);
-		console.log('existing file:', existingFile);
 		if (existingFile instanceof TFile) {
 			file = existingFile;
 			await this.app.vault.modify(file, markdown);
 		} else {
 			file = await this.app.vault.create(filePath, markdown);
-			console.log('created file:', file);
 		}
 		new Notice(`Markdown file created: ${fileName}`);
 		this.app.workspace.openLinkText(file.path, '', true);
@@ -329,7 +322,7 @@ export default class Marker extends Plugin {
 				newImageName =
 					originalFile.name.replace(/\.pdf(?=[^.]*$)/, '_') + imageName;
 			}
-			const imageArrayBuffer = this.base64ToArrayBuffer(imageBase64);
+			const imageArrayBuffer = base64ToArrayBuffer(imageBase64);
 			// check if image already exists, if so, overwrite it
 			if (
 				this.app.vault.getAbstractFileByPath(
@@ -363,9 +356,18 @@ export default class Marker extends Plugin {
 		const filePath = folderPath + fileName;
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		if (file instanceof TFile) {
-			const content = await this.app.vault.read(file);
+			// use the processFrontMatter function to add the metadata to the markdown file
 			const frontmatter = this.generateFrontmatter(metadata);
-			await this.app.vault.modify(file, frontmatter + content);
+			await this.app.fileManager
+				.processFrontMatter(file, (fm) => {
+					return frontmatter + fm;
+				})
+				.catch((error) => {
+					console.error('Error adding metadata to markdown file:', error);
+				});
+			// 	const content = await this.app.vault.read(file);
+			// 	const frontmatter = this.generateFrontmatter(metadata);
+			// 	await this.app.vault.modify(file, frontmatter + content);
 		}
 	}
 
@@ -423,13 +425,37 @@ export default class Marker extends Plugin {
 		return true;
 	}
 
-	private base64ToArrayBuffer(base64: string): ArrayBuffer {
-		const binaryString = window.atob(base64);
-		const bytes = new Uint8Array(binaryString.length);
-		for (let i = 0; i < binaryString.length; i++) {
-			bytes[i] = binaryString.charCodeAt(i);
+	public testConnection(): boolean {
+		try {
+			const request = new FormData();
+			request.append('pdf_file', new Blob(), 'test.pdf');
+			request.append('extract_images', 'false');
+
+			fetch(`http://${this.settings.markerEndpoint}/convert`, {
+				method: 'POST',
+				body: request,
+			})
+				.then((response) => {
+					if (response.status !== 200) {
+						new Notice(`Error connecting to Marker API: ${response.status}`);
+						console.error('Error connecting to Marker API:', response.status);
+						return false;
+					} else {
+						new Notice('Connection successful!');
+						return true;
+					}
+				})
+				.catch((error) => {
+					new Notice('Error connecting to Marker API');
+					console.error('Error connecting to Marker API:', error);
+					return false;
+				});
+		} catch (error) {
+			new Notice('Error connecting to Marker API');
+			console.error('Error connecting to Marker API:', error);
+			return false;
 		}
-		return bytes.buffer;
+		return false;
 	}
 
 	onunload() {}
@@ -456,13 +482,10 @@ class MarkerSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		// header for the settings tab
-		new Setting(containerEl).setName('Marker PDF to MD').setHeading();
-
-		// setting for the marker api endpoint
+		// setting for the marker API endpoint
 		new Setting(containerEl)
 			.setName('Marker API endpoint')
-			.setDesc('The endpoint to use for the marker api.')
+			.setDesc('The endpoint to use for the Marker API.')
 			.addText((text) =>
 				text
 					.setPlaceholder('localhost:8000')
@@ -473,33 +496,8 @@ class MarkerSettingTab extends PluginSettingTab {
 					})
 			)
 			.addButton((button) =>
-				button.setButtonText('Test Connection').onClick(() => {
-					try {
-						const request = new FormData();
-						request.append('pdf_file', new Blob(), 'test.pdf');
-						request.append('extract_images', 'false');
-
-						fetch(`http://${this.plugin.settings.markerEndpoint}/convert`, {
-							method: 'POST',
-							body: request,
-						})
-							.then((response) => {
-								if (response.status !== 200) {
-									new Notice(
-										`Error connecting to Marker API: ${response.status}`
-									);
-								} else {
-									new Notice('Connection successful!');
-								}
-							})
-							.catch((error) => {
-								new Notice('Error connecting to Marker API');
-								console.error('Error connecting to Marker API:', error);
-							});
-					} catch (error) {
-						new Notice('Error connecting to Marker API');
-						console.error('Error connecting to Marker API:', error);
-					}
+				button.setButtonText('Test connection').onClick(() => {
+					this.plugin.testConnection();
 				})
 			);
 

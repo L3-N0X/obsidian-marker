@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-marker",
 	"version": "1.0.0",
-	"description": "Connects to a marker api endpoint and then uses all of the power of marker to convert your pdfs into markdown!",
+	"description": "Convert PDFs to rich Markdown, including images and ocr using the Marker API",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
