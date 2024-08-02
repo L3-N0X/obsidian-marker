@@ -85,51 +85,64 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
-		if (!this.testConnection()) {
-			return false;
-		}
+		this.testConnection()
+			.then(async (result) => {
+				if (!result) {
+					return false;
+				} else {
+					try {
+						const folderPath = await this.handleFolderCreation(activeFile);
+						if (!folderPath) {
+							return true; // User cancelled the operation because folder exists
+						}
 
-		try {
-			const folderPath = await this.handleFolderCreation(activeFile);
-			if (!folderPath) {
-				return true; // User cancelled the operation because folder exists
-			}
+						if (
+							this.settings.extractContent === 'images' ||
+							this.settings.extractContent === 'all'
+						) {
+							const shouldOverwrite = await this.checkForExistingFiles(
+								folderPath
+							);
+							if (!shouldOverwrite) {
+								return true; // User chose not to overwrite
+							}
+						}
 
-			if (
-				this.settings.extractContent === 'images' ||
-				this.settings.extractContent === 'all'
-			) {
-				const shouldOverwrite = await this.checkForExistingFiles(folderPath);
-				if (!shouldOverwrite) {
-					return true; // User chose not to overwrite
+						const pdfContent = await this.app.vault.readBinary(activeFile);
+						if (
+							this.settings.extractContent === 'text' ||
+							this.settings.extractContent === 'all'
+						) {
+							new Notice(
+								'Converting PDF to Markdown, this can take a few seconds...',
+								10000
+							);
+						} else {
+							new Notice('Extracting images from PDF...', 10000);
+						}
+						const conversionResult = await this.convertPDFContent(pdfContent);
+						await this.processConversionResult(
+							conversionResult,
+							folderPath,
+							activeFile
+						);
+
+						new Notice('PDF conversion completed');
+					} catch (error) {
+						console.error('Error during PDF conversion:', error);
+						new Notice(
+							'Error during PDF conversion. Check console for details.'
+						);
+					}
+
+					return true;
 				}
-			}
-
-			const pdfContent = await this.app.vault.readBinary(activeFile);
-			if (
-				this.settings.extractContent === 'text' ||
-				this.settings.extractContent === 'all'
-			) {
-				new Notice(
-					'Converting PDF to Markdown, this can take a few seconds...',
-					10000
-				);
-			} else {
-				new Notice('Extracting images from PDF...', 10000);
-			}
-			const conversionResult = await this.convertPDFContent(pdfContent);
-			await this.processConversionResult(
-				conversionResult,
-				folderPath,
-				activeFile
-			);
-
-			new Notice('PDF conversion completed');
-		} catch (error) {
-			console.error('Error during PDF conversion:', error);
-			new Notice('Error during PDF conversion. Check console for details.');
-		}
-
+			})
+			.catch((error) => {
+				console.error('Error during PDF conversion:', error);
+				new Notice('Error during PDF conversion. Check console for details.');
+				return false;
+			});
 		return true;
 	}
 
@@ -425,13 +438,13 @@ export default class Marker extends Plugin {
 		return true;
 	}
 
-	public testConnection(): boolean {
+	public testConnection(): Promise<boolean> {
 		try {
 			const request = new FormData();
 			request.append('pdf_file', new Blob(), 'test.pdf');
 			request.append('extract_images', 'false');
 
-			fetch(`http://${this.settings.markerEndpoint}/convert`, {
+			return fetch(`http://${this.settings.markerEndpoint}/convert`, {
 				method: 'POST',
 				body: request,
 			})
@@ -453,9 +466,8 @@ export default class Marker extends Plugin {
 		} catch (error) {
 			new Notice('Error connecting to Marker API');
 			console.error('Error connecting to Marker API:', error);
-			return false;
+			return Promise.resolve(false);
 		}
-		return false;
 	}
 
 	onunload() {}
