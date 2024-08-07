@@ -10,6 +10,7 @@ import {
 	TFile,
 	base64ToArrayBuffer,
 	requestUrl,
+	arrayBufferToBase64,
 } from 'obsidian';
 
 interface MarkerSettings {
@@ -140,7 +141,7 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
-		this.testConnection()
+		this.testConnection(true)
 			.then(async (result) => {
 				if (!result) {
 					return false;
@@ -201,6 +202,35 @@ export default class Marker extends Plugin {
 		return true;
 	}
 
+	private createFormBody(formData: FormData): {
+		body: string;
+		boundary: string;
+	} {
+		const boundary =
+			'----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+		let body = '';
+
+		formData.forEach((value, key) => {
+			body += `--${boundary}\r\n`;
+			body += `Content-Disposition: form-data; name="${key}"`;
+
+			if (value instanceof File) {
+				body += `; filename="${value.name}"\r\n`;
+				body += `Content-Type: ${value.type}\r\n\r\n`;
+				value.arrayBuffer().then((buffer) => {
+					body += arrayBufferToBase64(buffer);
+				});
+			} else {
+				body += '\r\n\r\n' + value;
+			}
+			body += '\r\n';
+		});
+
+		body += `--${boundary}--\r\n`;
+
+		return { body, boundary };
+	}
+
 	private async convertWithDatalab(file: TFile): Promise<boolean> {
 		const activeFile = file;
 		if (!activeFile) {
@@ -211,7 +241,7 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
-		this.testConnection()
+		this.testConnection(true)
 			.then(async (result) => {
 				if (!result) {
 					return false;
@@ -301,16 +331,21 @@ export default class Marker extends Plugin {
 						// 		},
 						// 	}
 						// );
+						const formDataString = this.createFormBody(formData);
 
+						console.log(formDataString.body);
 						const response = await requestUrl({
 							url: 'https://www.datalab.to/api/v1/marker',
 							method: 'POST',
-							body: formData.toString(), // Convert FormData to string
+							body: formDataString.body,
+							contentType: 'multipart/form-data',
 							headers: {
 								'X-Api-Key': this.settings.apiKey ?? '',
-								'Content-Type': 'multipart/form-data', // Set the correct content type
+								'Content-Type': `multipart/form-data; boundary=${formDataString.boundary}`,
 							},
 						});
+
+						console.log('already converted, now polling, ', response);
 
 						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
 						if (response.status === 200 || response.status === 422) {
@@ -666,7 +701,7 @@ export default class Marker extends Plugin {
 		return true;
 	}
 
-	public testConnection(): Promise<boolean> {
+	public testConnection(silent: boolean | undefined): Promise<boolean> {
 		// Test connection to the Marker API, different for datalab and selfhosted
 		if (this.settings.apiEndpoint === 'datalab') {
 			// Test connection to the Datalab Marker API
@@ -695,7 +730,7 @@ export default class Marker extends Plugin {
 								return false;
 							} else {
 								if (response.json.status === 'ok') {
-									new Notice('Connection successful!');
+									if (!silent) new Notice('Connection successful!');
 									return true;
 								} else {
 									new Notice('Error connecting to Datalab Marker API');
@@ -735,7 +770,7 @@ export default class Marker extends Plugin {
 							console.error('Error connecting to Marker API:', response.status);
 							return false;
 						} else {
-							new Notice('Connection successful!');
+							if (!silent) new Notice('Connection successful!');
 							return true;
 						}
 					})
@@ -807,7 +842,7 @@ class MarkerSettingTab extends PluginSettingTab {
 			)
 			.addButton((button) =>
 				button.setButtonText('Test connection').onClick(() => {
-					this.plugin.testConnection();
+					this.plugin.testConnection(false);
 				})
 			);
 
@@ -826,7 +861,7 @@ class MarkerSettingTab extends PluginSettingTab {
 			)
 			.addButton((button) =>
 				button.setButtonText('Test connection').onClick(() => {
-					this.plugin.testConnection();
+					this.plugin.testConnection(false);
 				})
 			);
 
