@@ -9,6 +9,7 @@ import {
 	TFolder,
 	TFile,
 	base64ToArrayBuffer,
+	requestUrl,
 } from 'obsidian';
 
 interface MarkerSettings {
@@ -290,20 +291,30 @@ export default class Marker extends Plugin {
 							this.settings.paginate ? 'true' : 'false'
 						);
 
-						const response = await fetch(
-							`https://datalab.marker.io/api/v1/marker`,
-							{
-								method: 'POST',
-								body: formData,
-								headers: {
-									'X-Api-Key': this.settings.apiKey ?? '',
-								},
-							}
-						);
+						// const response = await fetch(
+						// 	`https://www.datalab.to/api/v1/marker`,
+						// 	{
+						// 		method: 'POST',
+						// 		body: formData, // TODO: maybe switch to files: formData
+						// 		headers: {
+						// 			'X-Api-Key': this.settings.apiKey ?? '',
+						// 		},
+						// 	}
+						// );
+
+						const response = await requestUrl({
+							url: 'https://www.datalab.to/api/v1/marker',
+							method: 'POST',
+							body: formData.toString(), // Convert FormData to string
+							headers: {
+								'X-Api-Key': this.settings.apiKey ?? '',
+								'Content-Type': 'multipart/form-data', // Set the correct content type
+							},
+						});
 
 						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
 						if (response.status === 200 || response.status === 422) {
-							const data = await response.json();
+							const data = await response.json;
 							if (response.status === 422) {
 								new Notice(`Failed! Err: ${data.detail.msg}`);
 								return false;
@@ -424,22 +435,26 @@ export default class Marker extends Plugin {
 	}
 
 	private async pollForConversionResult(requestCheckUrl: string): Promise<any> {
-		let response = await fetch(requestCheckUrl, {
+		let response = await requestUrl({
+			url: requestCheckUrl,
+			method: 'GET',
 			headers: {
 				'X-Api-Key': this.settings.apiKey ?? '',
 			},
 		});
-		let data = await response.json();
+		let data = await response.json;
 		let maxRetries = 300;
 		while (data.status !== 'complete' && maxRetries > 0) {
 			maxRetries--;
 			await new Promise((resolve) => setTimeout(resolve, 2000));
-			response = await fetch(requestCheckUrl, {
+			response = await requestUrl({
+				url: requestCheckUrl,
+				method: 'GET',
 				headers: {
 					'X-Api-Key': this.settings.apiKey ?? '',
 				},
 			});
-			data = await response.json();
+			data = await response.json;
 		}
 		return data;
 	}
@@ -661,7 +676,9 @@ export default class Marker extends Plugin {
 			} else {
 				try {
 					// test /api/v1/user_health endpoint, okay when status is 200 and json status is 'ok'
-					return fetch(`https://datalab.marker.io/api/v1/user_health`, {
+					return requestUrl({
+						url: 'https://www.datalab.to/api/v1/user_health',
+						method: 'GET',
 						headers: {
 							'X-Api-Key': this.settings.apiKey,
 						},
@@ -677,19 +694,17 @@ export default class Marker extends Plugin {
 								);
 								return false;
 							} else {
-								return response.json().then((data) => {
-									if (data.status === 'ok') {
-										new Notice('Connection successful!');
-										return true;
-									} else {
-										new Notice('Error connecting to Datalab Marker API');
-										console.error(
-											'Error connecting to Datalab Marker API:',
-											data
-										);
-										return false;
-									}
-								});
+								if (response.json.status === 'ok') {
+									new Notice('Connection successful!');
+									return true;
+								} else {
+									new Notice('Error connecting to Datalab Marker API');
+									console.error(
+										'Error connecting to Datalab Marker API:',
+										response.json
+									);
+									return false;
+								}
 							}
 						})
 						.catch((error) => {
@@ -761,8 +776,24 @@ class MarkerSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		// setting for the marker API endpoint
+		// setting for the API endpoint (datalab or selfhosted)
 		new Setting(containerEl)
+			.setName('API endpoint')
+			.setDesc('Select the API endpoint to use')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('datalab', 'Datalab')
+					.addOption('selfhosted', 'Selfhosted')
+					.setValue(this.plugin.settings.apiEndpoint)
+					.onChange(async (value) => {
+						this.plugin.settings.apiEndpoint = value;
+						updateAPIKeySetting(value);
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// setting for the self hosted marker API endpoint, only shown when selfhosted is selected
+		const endpointField = new Setting(containerEl)
 			.setName('Marker API endpoint')
 			.setDesc('The endpoint to use for the Marker API.')
 			.addText((text) =>
@@ -780,21 +811,6 @@ class MarkerSettingTab extends PluginSettingTab {
 				})
 			);
 
-		// setting for the API endpoint (datalab or selfhosted)
-		new Setting(containerEl)
-			.setName('API endpoint')
-			.setDesc('Select the API endpoint to use')
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption('datalab', 'Datalab')
-					.addOption('selfhosted', 'Selfhosted')
-					.setValue(this.plugin.settings.apiEndpoint)
-					.onChange(async (value) => {
-						this.plugin.settings.apiEndpoint = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
 		// API KEY field for datalab, only shown when datalab is selected
 		const apiKeyField = new Setting(containerEl)
 			.setName('API Key')
@@ -807,14 +823,17 @@ class MarkerSettingTab extends PluginSettingTab {
 						this.plugin.settings.apiKey = value;
 						await this.plugin.saveSettings();
 					})
+			)
+			.addButton((button) =>
+				button.setButtonText('Test connection').onClick(() => {
+					this.plugin.testConnection();
+				})
 			);
 
 		// langs setting for the languages to extract, only shown when datalab is selected
 		const langsField = new Setting(containerEl)
 			.setName('Languages')
-			.setDesc(
-				'The languages to use if OCR is needed, separated by commas. See <a href="https://github.com/VikParuchuri/surya/blob/master/surya/languages.py">here</a> for a list of supported languages.'
-			)
+			.setDesc('The languages to use if OCR is needed, separated by commas')
 			.addText((text) =>
 				text
 					.setPlaceholder('en')
@@ -823,6 +842,11 @@ class MarkerSettingTab extends PluginSettingTab {
 						this.plugin.settings.langs = value;
 						await this.plugin.saveSettings();
 					})
+			)
+			.addButton((button) =>
+				button.setButtonText('See supported languages').onClick(() => {
+					new MarkerSupportedLangsDialog(this.app).open();
+				})
 			);
 
 		// setting for whether to force OCR, only shown when datalab is selected
@@ -957,6 +981,7 @@ class MarkerSettingTab extends PluginSettingTab {
 			langsField.settingEl.toggle(apiEndpoint === 'datalab');
 			forceOCRToggle.settingEl.toggle(apiEndpoint === 'datalab');
 			paginateToggle.settingEl.toggle(apiEndpoint === 'datalab');
+			endpointField.settingEl.toggle(apiEndpoint === 'selfhosted');
 		};
 
 		updateAPIKeySetting(this.plugin.settings.apiEndpoint);
@@ -1009,6 +1034,40 @@ export class MarkerOkayCancelDialog extends Modal {
 			this.result = false;
 			this.onSubmit(false);
 			this.close();
+		});
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+export class MarkerSupportedLangsDialog extends Modal {
+	title: string;
+	message: string;
+	link: string;
+	linkText: string;
+
+	constructor(app: App) {
+		super(app);
+		this.title = 'Supported Languages';
+		this.message =
+			'To see the supported languages, please visit the following link:';
+		this.link =
+			'https://github.com/VikParuchuri/surya/blob/master/surya/languages.py';
+		this.linkText = 'Supported Languages (VikParuchuri/surya)';
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.createEl('h2', { text: this.title });
+		contentEl.createEl('p', {
+			text: this.message,
+		});
+		contentEl.createEl('a', {
+			text: this.linkText,
+			attr: { href: this.link },
 		});
 	}
 
