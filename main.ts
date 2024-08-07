@@ -265,7 +265,7 @@ export default class Marker extends Plugin {
 							}
 						}
 
-						const pdfContent = await this.app.vault.readBinary(activeFile);
+						const fileContent = await this.app.vault.readBinary(activeFile);
 						if (
 							this.settings.extractContent === 'text' ||
 							this.settings.extractContent === 'all'
@@ -283,45 +283,39 @@ export default class Marker extends Plugin {
 							'----WebKitFormBoundary' +
 							Math.random().toString(36).substring(2);
 
-						// Create the multipart form-data manually
-						const parts = [];
+						// Create the multipart form-data as a string
+						let body = '';
 
 						// Add the file part based on the file extension
-						let fileFieldName = '';
+						const fileFieldName = 'file';
 						let contentType = '';
 						switch (activeFile.extension) {
 							case 'pdf':
-								fileFieldName = 'pdf_file';
 								contentType = 'application/pdf';
 								break;
 							case 'docx':
 							case 'doc':
-								fileFieldName = 'docx_file';
 								contentType =
 									'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 								break;
 							case 'pptx':
 							case 'ppt':
-								fileFieldName = 'pptx_file';
 								contentType =
 									'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 								break;
 						}
 
-						parts.push(
-							`--${boundary}\r\n` +
-								`Content-Disposition: form-data; name="${fileFieldName}"; filename="${activeFile.name}"\r\n` +
-								`Content-Type: ${contentType}\r\n\r\n`
-						);
-						parts.push(new Uint8Array(pdfContent));
-						parts.push('\r\n');
+						body += `--${boundary}\r\n`;
+						body += `Content-Disposition: form-data; name="${fileFieldName}"; filename="${activeFile.name}"\r\n`;
+						body += `Content-Type: ${contentType}\r\n\r\n`;
+						body += Buffer.from(fileContent).toString('binary');
+						body += '\r\n';
 
 						// Add other form fields
 						const addFormField = (name: string, value: string) => {
-							parts.push(
-								`--${boundary}\r\n` +
-									`Content-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
-							);
+							body += `--${boundary}\r\n`;
+							body += `Content-Disposition: form-data; name="${name}"\r\n\r\n`;
+							body += `${value}\r\n`;
 						};
 
 						addFormField(
@@ -336,53 +330,48 @@ export default class Marker extends Plugin {
 						addFormField('paginate', this.settings.paginate ? 'true' : 'false');
 
 						// Append the closing boundary
-						parts.push(`--${boundary}--\r\n`);
-
-						// Combine all parts into a single ArrayBuffer
-						const bodyParts = parts.map((part) =>
-							typeof part === 'string' ? new TextEncoder().encode(part) : part
-						);
-						const bodyLength = bodyParts.reduce(
-							(acc, part) => acc + part.byteLength,
-							0
-						);
-						const body = new Uint8Array(bodyLength);
-						let offset = 0;
-						for (const part of bodyParts) {
-							body.set(part, offset);
-							offset += part.byteLength;
-						}
+						body += `--${boundary}--\r\n`;
 
 						const requestParams: RequestUrlParam = {
 							url: `https://www.datalab.to/api/v1/marker`,
 							method: 'POST',
-							body: body.buffer,
+							body: body,
 							headers: {
 								'Content-Type': `multipart/form-data; boundary=${boundary}`,
 								'X-Api-Key': this.settings.apiKey ?? '',
 							},
+							throw: false, // Don't throw on non-200 status codes
 						};
-
 						try {
-							const response = await requestUrl(requestParams);
-
-							if (response.status === 200 || response.status === 422) {
-								const data = response.json;
-								if (response.status === 422) {
-									new Notice(`Failed! Err: ${data.detail.msg}`);
-									return false;
-								}
-								const result = await this.pollForConversionResult(
-									data.request_check_url
-								);
-								await this.processConversionResult(
-									result,
-									folderPath,
-									activeFile
-								);
-							} else {
-								throw new Error(`HTTP error! status: ${response.status}`);
-							}
+							requestUrl(requestParams)
+								.then(async (response) => {
+									const data = response.json;
+									if (response.status === 200) {
+										const result = await this.pollForConversionResult(
+											data.request_check_url
+										);
+										await this.processConversionResult(
+											result,
+											folderPath,
+											activeFile
+										);
+									} else {
+										console.error('Error with datalab: ', data.detail);
+										if (typeof data.detail === 'string') {
+											new Notice(
+												`Error with Datalab Marker API: ${data.detail}`
+											);
+										} else {
+											new Notice(
+												`Error with Datalab Marker API, check console for details`
+											);
+										}
+									}
+								})
+								.catch((error) => {
+									console.error('Error in convertWithDatalab:', error);
+									throw new Error(`Error in convertWithDatalab: ${error}`);
+								});
 						} catch (error) {
 							console.error('Error in file conversion:', error);
 							new Notice(
