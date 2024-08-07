@@ -321,19 +321,8 @@ export default class Marker extends Plugin {
 							this.settings.paginate ? 'true' : 'false'
 						);
 
-						// const response = await fetch(
-						// 	`https://www.datalab.to/api/v1/marker`,
-						// 	{
-						// 		method: 'POST',
-						// 		body: formData, // TODO: maybe switch to files: formData
-						// 		headers: {
-						// 			'X-Api-Key': this.settings.apiKey ?? '',
-						// 		},
-						// 	}
-						// );
 						const formDataString = this.createFormBody(formData);
 
-						console.log(formDataString.body);
 						const response = await requestUrl({
 							url: 'https://www.datalab.to/api/v1/marker',
 							method: 'POST',
@@ -344,8 +333,6 @@ export default class Marker extends Plugin {
 								'Content-Type': `multipart/form-data; boundary=${formDataString.boundary}`,
 							},
 						});
-
-						console.log('already converted, now polling, ', response);
 
 						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
 						if (response.status === 200 || response.status === 422) {
