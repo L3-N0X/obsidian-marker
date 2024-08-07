@@ -11,6 +11,7 @@ import {
 	base64ToArrayBuffer,
 	requestUrl,
 	arrayBufferToBase64,
+	RequestUrlParam,
 } from 'obsidian';
 
 interface MarkerSettings {
@@ -321,35 +322,20 @@ export default class Marker extends Plugin {
 							this.settings.paginate ? 'true' : 'false'
 						);
 
-						// const response = await fetch(
-						// 	`https://www.datalab.to/api/v1/marker`,
-						// 	{
-						// 		method: 'POST',
-						// 		body: formData, // TODO: maybe switch to files: formData
-						// 		headers: {
-						// 			'X-Api-Key': this.settings.apiKey ?? '',
-						// 		},
-						// 	}
-						// );
-						const formDataString = this.createFormBody(formData);
-
-						console.log(formDataString.body);
-						const response = await requestUrl({
-							url: 'https://www.datalab.to/api/v1/marker',
-							method: 'POST',
-							body: formDataString.body,
-							contentType: 'multipart/form-data',
-							headers: {
-								'X-Api-Key': this.settings.apiKey ?? '',
-								'Content-Type': `multipart/form-data; boundary=${formDataString.boundary}`,
-							},
-						});
-
-						console.log('already converted, now polling, ', response);
+						const response = await fetch(
+							`https://www.datalab.to/api/v1/marker`,
+							{
+								method: 'POST',
+								body: formData,
+								headers: {
+									'X-Api-Key': this.settings.apiKey ?? '',
+								},
+							}
+						);
 
 						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
 						if (response.status === 200 || response.status === 422) {
-							const data = await response.json;
+							const data = await response.json();
 							if (response.status === 422) {
 								new Notice(`Failed! Err: ${data.detail.msg}`);
 								return false;
@@ -443,30 +429,66 @@ export default class Marker extends Plugin {
 	}
 
 	private async convertPDFContent(pdfContent: ArrayBuffer): Promise<any> {
-		const formData = new FormData();
-		formData.append(
-			'pdf_file',
-			new Blob([pdfContent], { type: 'application/pdf' }),
-			'document.pdf'
+		// Generate a random boundary string
+		const boundary =
+			'----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+
+		// Create the multipart form-data manually
+		const parts = [];
+
+		// Append the PDF file part
+		parts.push(
+			`--${boundary}\r\n` +
+				'Content-Disposition: form-data; name="pdf_file"; filename="document.pdf"\r\n' +
+				'Content-Type: application/pdf\r\n\r\n'
 		);
-		formData.append(
-			'extract_images',
-			this.settings.extractContent !== 'text' ? 'true' : 'false'
+		parts.push(new Uint8Array(pdfContent));
+		parts.push('\r\n');
+
+		// Append the extract_images part
+		parts.push(
+			`--${boundary}\r\n` +
+				'Content-Disposition: form-data; name="extract_images"\r\n\r\n' +
+				`${this.settings.extractContent !== 'text' ? 'true' : 'false'}\r\n`
 		);
 
-		const response = await fetch(
-			`http://${this.settings.markerEndpoint}/convert`,
-			{
-				method: 'POST',
-				body: formData,
-			}
-		);
+		// Append the closing boundary
+		parts.push(`--${boundary}--\r\n`);
 
-		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`);
+		// Combine all parts into a single ArrayBuffer
+		const bodyParts = parts.map((part) =>
+			typeof part === 'string' ? new TextEncoder().encode(part) : part
+		);
+		const bodyLength = bodyParts.reduce(
+			(acc, part) => acc + part.byteLength,
+			0
+		);
+		const body = new Uint8Array(bodyLength);
+		let offset = 0;
+		for (const part of bodyParts) {
+			body.set(part, offset);
+			offset += part.byteLength;
 		}
 
-		return response.json();
+		const requestParams: RequestUrlParam = {
+			url: `http://${this.settings.markerEndpoint}/convert`,
+			method: 'POST',
+			body: body.buffer,
+			headers: {
+				'Content-Type': `multipart/form-data; boundary=${boundary}`,
+			},
+		};
+
+		try {
+			const response = await requestUrl(requestParams);
+			if (response.status >= 400) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+			return response.json;
+		} catch (error) {
+			console.error('Error in convertPDFContent:', error);
+			throw error;
+		}
 	}
 
 	private async pollForConversionResult(requestCheckUrl: string): Promise<any> {
