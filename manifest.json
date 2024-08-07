@@ -1,7 +1,7 @@
 {
 	"id": "marker-api",
 	"name": "Marker PDF to MD",
-	"version": "1.2.2",
+	"version": "1.2.3",
 	"minAppVersion": "0.15.0",
 	"description": "Convert PDFs to rich Markdown, including images and ocr using the Marker API",
 	"author": "L3N0X",
