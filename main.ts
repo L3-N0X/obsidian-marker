@@ -142,7 +142,7 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
-		this.testConnection(true)
+		await this.testConnection(true)
 			.then(async (result) => {
 				if (!result) {
 					return false;
@@ -242,7 +242,7 @@ export default class Marker extends Plugin {
 			return false;
 		}
 
-		this.testConnection(true)
+		await this.testConnection(true)
 			.then(async (result) => {
 				if (!result) {
 					return false;
@@ -277,79 +277,118 @@ export default class Marker extends Plugin {
 						} else {
 							new Notice('Extracting images from file...', 10000);
 						}
-						const formData = new FormData();
-						// add the pdf, docx, doc, pptx or ppt file to the form data
+
+						// Generate a random boundary string
+						const boundary =
+							'----WebKitFormBoundary' +
+							Math.random().toString(36).substring(2);
+
+						// Create the multipart form-data manually
+						const parts = [];
+
+						// Add the file part based on the file extension
+						let fileFieldName = '';
+						let contentType = '';
 						switch (activeFile.extension) {
 							case 'pdf':
-								formData.append(
-									'pdf_file',
-									new Blob([pdfContent], { type: 'application/pdf' }),
-									activeFile.name
-								);
+								fileFieldName = 'pdf_file';
+								contentType = 'application/pdf';
 								break;
 							case 'docx':
 							case 'doc':
-								formData.append(
-									'docx_file',
-									new Blob([pdfContent], {
-										type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-									}),
-									activeFile.name
-								);
+								fileFieldName = 'docx_file';
+								contentType =
+									'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 								break;
 							case 'pptx':
 							case 'ppt':
-								formData.append(
-									'pptx_file',
-									new Blob([pdfContent], {
-										type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-									}),
-									activeFile.name
-								);
+								fileFieldName = 'pptx_file';
+								contentType =
+									'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 								break;
 						}
-						formData.append(
+
+						parts.push(
+							`--${boundary}\r\n` +
+								`Content-Disposition: form-data; name="${fileFieldName}"; filename="${activeFile.name}"\r\n` +
+								`Content-Type: ${contentType}\r\n\r\n`
+						);
+						parts.push(new Uint8Array(pdfContent));
+						parts.push('\r\n');
+
+						// Add other form fields
+						const addFormField = (name: string, value: string) => {
+							parts.push(
+								`--${boundary}\r\n` +
+									`Content-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+							);
+						};
+
+						addFormField(
 							'extract_images',
 							this.settings.extractContent !== 'text' ? 'true' : 'false'
 						);
-						formData.append('langs', this.settings.langs ?? 'en');
-						formData.append(
+						addFormField('langs', this.settings.langs ?? 'en');
+						addFormField(
 							'force_ocr',
 							this.settings.forceOCR ? 'true' : 'false'
 						);
-						formData.append(
-							'paginate',
-							this.settings.paginate ? 'true' : 'false'
-						);
+						addFormField('paginate', this.settings.paginate ? 'true' : 'false');
 
-						const response = await fetch(
-							`https://www.datalab.to/api/v1/marker`,
-							{
-								method: 'POST',
-								body: formData,
-								headers: {
-									'X-Api-Key': this.settings.apiKey ?? '',
-								},
-							}
-						);
+						// Append the closing boundary
+						parts.push(`--${boundary}--\r\n`);
 
-						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
-						if (response.status === 200 || response.status === 422) {
-							const data = await response.json();
-							if (response.status === 422) {
-								new Notice(`Failed! Err: ${data.detail.msg}`);
-								return false;
+						// Combine all parts into a single ArrayBuffer
+						const bodyParts = parts.map((part) =>
+							typeof part === 'string' ? new TextEncoder().encode(part) : part
+						);
+						const bodyLength = bodyParts.reduce(
+							(acc, part) => acc + part.byteLength,
+							0
+						);
+						const body = new Uint8Array(bodyLength);
+						let offset = 0;
+						for (const part of bodyParts) {
+							body.set(part, offset);
+							offset += part.byteLength;
+						}
+
+						const requestParams: RequestUrlParam = {
+							url: `https://www.datalab.to/api/v1/marker`,
+							method: 'POST',
+							body: body.buffer,
+							headers: {
+								'Content-Type': `multipart/form-data; boundary=${boundary}`,
+								'X-Api-Key': this.settings.apiKey ?? '',
+							},
+						};
+
+						try {
+							const response = await requestUrl(requestParams);
+
+							if (response.status === 200 || response.status === 422) {
+								const data = response.json;
+								if (response.status === 422) {
+									new Notice(`Failed! Err: ${data.detail.msg}`);
+									return false;
+								}
+								const result = await this.pollForConversionResult(
+									data.request_check_url
+								);
+								await this.processConversionResult(
+									result,
+									folderPath,
+									activeFile
+								);
+							} else {
+								throw new Error(`HTTP error! status: ${response.status}`);
 							}
-							const result = await this.pollForConversionResult(
-								data.request_check_url
+						} catch (error) {
+							console.error('Error in file conversion:', error);
+							new Notice(
+								`An error occurred during file conversion: ${error.message}`
 							);
-							await this.processConversionResult(
-								result,
-								folderPath,
-								activeFile
-							);
-						} else {
-							throw new Error(`HTTP error! status: ${response.status}`);
+							throw error;
 						}
 
 						new Notice('PDF conversion completed');
@@ -723,7 +762,7 @@ export default class Marker extends Plugin {
 		return true;
 	}
 
-	public testConnection(silent: boolean | undefined): Promise<boolean> {
+	public async testConnection(silent: boolean | undefined): Promise<boolean> {
 		// Test connection to the Marker API, different for datalab and selfhosted
 		if (this.settings.apiEndpoint === 'datalab') {
 			// Test connection to the Datalab Marker API
@@ -778,29 +817,73 @@ export default class Marker extends Plugin {
 		} else {
 			// Test connection to the selfhosted Marker API
 			try {
-				const request = new FormData();
-				request.append('pdf_file', new Blob(), 'test.pdf');
-				request.append('extract_images', 'false');
+				// Generate a random boundary string
+				const boundary =
+					'----WebKitFormBoundary' + Math.random().toString(36).substring(2);
 
-				return fetch(`http://${this.settings.markerEndpoint}/convert`, {
+				// Create the multipart form-data manually
+				const parts = [];
+
+				// Add the pdf_file part (empty file)
+				parts.push(
+					`--${boundary}\r\n` +
+						'Content-Disposition: form-data; name="pdf_file"; filename="test.pdf"\r\n' +
+						'Content-Type: application/pdf\r\n\r\n'
+				);
+				parts.push(new Uint8Array(0)); // Empty file
+				parts.push('\r\n');
+
+				// Add extract_images part
+				parts.push(
+					`--${boundary}\r\n` +
+						'Content-Disposition: form-data; name="extract_images"\r\n\r\n' +
+						'false\r\n'
+				);
+
+				// Append the closing boundary
+				parts.push(`--${boundary}--\r\n`);
+
+				// Combine all parts into a single ArrayBuffer
+				const bodyParts = parts.map((part) =>
+					typeof part === 'string' ? new TextEncoder().encode(part) : part
+				);
+				const bodyLength = bodyParts.reduce(
+					(acc, part) => acc + part.byteLength,
+					0
+				);
+				const body = new Uint8Array(bodyLength);
+				let offset = 0;
+				for (const part of bodyParts) {
+					body.set(part, offset);
+					offset += part.byteLength;
+				}
+
+				const requestParams: RequestUrlParam = {
+					url: `http://${this.settings.markerEndpoint}/convert`,
 					method: 'POST',
-					body: request,
-				})
-					.then((response) => {
-						if (response.status !== 200) {
-							new Notice(`Error connecting to Marker API: ${response.status}`);
-							console.error('Error connecting to Marker API:', response.status);
-							return false;
-						} else {
-							if (!silent) new Notice('Connection successful!');
-							return true;
-						}
-					})
-					.catch((error) => {
-						new Notice('Error connecting to Marker API');
-						console.error('Error connecting to Marker API:', error);
+					body: body.buffer,
+					headers: {
+						'Content-Type': `multipart/form-data; boundary=${boundary}`,
+					},
+					throw: false, // Don't throw on non-200 status codes
+				};
+
+				try {
+					const response = await requestUrl(requestParams);
+
+					if (response.status !== 200) {
+						new Notice(`Error connecting to Marker API: ${response.status}`);
+						console.error('Error connecting to Marker API:', response.status);
 						return false;
-					});
+					} else {
+						if (!silent) new Notice('Connection successful!');
+						return true;
+					}
+				} catch (error) {
+					new Notice('Error connecting to Marker API');
+					console.error('Error connecting to Marker API:', error);
+					return false;
+				}
 			} catch (error) {
 				new Notice('Error connecting to Marker API');
 				console.error('Error connecting to Marker API:', error);
@@ -863,8 +946,8 @@ class MarkerSettingTab extends PluginSettingTab {
 					})
 			)
 			.addButton((button) =>
-				button.setButtonText('Test connection').onClick(() => {
-					this.plugin.testConnection(false);
+				button.setButtonText('Test connection').onClick(async () => {
+					await this.plugin.testConnection(false);
 				})
 			);
 
@@ -882,8 +965,8 @@ class MarkerSettingTab extends PluginSettingTab {
 					})
 			)
 			.addButton((button) =>
-				button.setButtonText('Test connection').onClick(() => {
-					this.plugin.testConnection(false);
+				button.setButtonText('Test connection').onClick(async () => {
+					await this.plugin.testConnection(false);
 				})
 			);
 
