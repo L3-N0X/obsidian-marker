@@ -19,6 +19,11 @@ interface MarkerSettings {
 	writeMetadata: boolean;
 	movePDFtoFolder: boolean;
 	createAssetSubfolder: boolean;
+	apiEndpoint: string;
+	apiKey?: string;
+	langs?: string;
+	forceOCR?: boolean;
+	paginate?: boolean;
 }
 
 const DEFAULT_SETTINGS: MarkerSettings = {
@@ -29,6 +34,11 @@ const DEFAULT_SETTINGS: MarkerSettings = {
 	writeMetadata: false,
 	movePDFtoFolder: false,
 	createAssetSubfolder: true,
+	apiEndpoint: 'selfhosted',
+	apiKey: '',
+	langs: 'en',
+	forceOCR: false,
+	paginate: false,
 };
 
 export default class Marker extends Plugin {
@@ -41,14 +51,44 @@ export default class Marker extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu, file, source) => {
 				if (!file.name.endsWith('.pdf')) {
-					return;
+					if (this.settings.apiEndpoint === 'datalab') {
+						// also allow conversion of docx, pptx, ppt and doc files
+						if (
+							!file.name.endsWith('.docx') &&
+							!file.name.endsWith('.pptx') &&
+							!file.name.endsWith('.ppt') &&
+							!file.name.endsWith('.doc')
+						) {
+							return;
+						}
+					} else return;
 				}
 				menu.addItem((item) => {
 					item.setIcon('pdf-file');
-					item.setTitle('Convert PDF to MD');
+					switch (file.name.split('.').pop()) {
+						case 'pdf':
+							item.setTitle('Convert PDF to MD');
+							break;
+						case 'docx':
+							item.setTitle('Convert DOCX to MD');
+							break;
+						case 'pptx':
+							item.setTitle('Convert PPTX to MD');
+							break;
+						case 'ppt':
+							item.setTitle('Convert PPT to MD');
+							break;
+						case 'doc':
+							item.setTitle('Convert DOC to MD');
+							break;
+					}
 					item.onClick(async () => {
 						if (file instanceof TFile) {
-							await this.convertPDFToMD(file);
+							if (this.settings.apiEndpoint === 'datalab') {
+								await this.convertWithDatalab(file);
+							} else {
+								await this.convertPDFToMD(file);
+							}
 						}
 					});
 				});
@@ -58,11 +98,21 @@ export default class Marker extends Plugin {
 
 	private addCommands() {
 		this.addCommand({
-			id: 'convert-pdf-to-md',
-			name: 'Convert PDF to MD',
+			id: 'marker-convert-to-md',
+			name: 'Convert to MD',
 			checkCallback: (checking: boolean) => {
 				const activeFile = this.app.workspace.getActiveFile();
-				if (activeFile?.extension !== 'pdf') {
+				if (this.settings.apiEndpoint === 'datalab') {
+					if (
+						activeFile?.extension !== 'pdf' &&
+						activeFile?.extension !== 'docx' &&
+						activeFile?.extension !== 'pptx' &&
+						activeFile?.extension !== 'ppt' &&
+						activeFile?.extension !== 'doc'
+					) {
+						return false;
+					}
+				} else if (activeFile?.extension !== 'pdf') {
 					return false;
 				}
 
@@ -70,7 +120,11 @@ export default class Marker extends Plugin {
 					return true;
 				}
 
-				this.convertPDFToMD(activeFile);
+				if (this.settings.apiEndpoint === 'datalab') {
+					this.convertWithDatalab(activeFile);
+				} else {
+					this.convertPDFToMD(activeFile);
+				}
 			},
 		});
 	}
@@ -142,6 +196,142 @@ export default class Marker extends Plugin {
 				console.error('Error during PDF conversion:', error);
 				new Notice('Error during PDF conversion. Check console for details.');
 				return false;
+			});
+		return true;
+	}
+
+	private async convertWithDatalab(file: TFile): Promise<boolean> {
+		const activeFile = file;
+		if (!activeFile) {
+			return false;
+		}
+
+		if (!this.checkSettings()) {
+			return false;
+		}
+
+		this.testConnection()
+			.then(async (result) => {
+				if (!result) {
+					return false;
+				} else {
+					try {
+						const folderPath = await this.handleFolderCreation(activeFile);
+						if (!folderPath) {
+							return true; // User cancelled the operation because folder exists
+						}
+
+						if (
+							this.settings.extractContent === 'images' ||
+							this.settings.extractContent === 'all'
+						) {
+							const shouldOverwrite = await this.checkForExistingFiles(
+								folderPath
+							);
+							if (!shouldOverwrite) {
+								return true; // User chose not to overwrite
+							}
+						}
+
+						const pdfContent = await this.app.vault.readBinary(activeFile);
+						if (
+							this.settings.extractContent === 'text' ||
+							this.settings.extractContent === 'all'
+						) {
+							new Notice(
+								'Converting file to Markdown, this can take a few seconds...',
+								10000
+							);
+						} else {
+							new Notice('Extracting images from file...', 10000);
+						}
+						const formData = new FormData();
+						// add the pdf, docx, doc, pptx or ppt file to the form data
+						switch (activeFile.extension) {
+							case 'pdf':
+								formData.append(
+									'pdf_file',
+									new Blob([pdfContent], { type: 'application/pdf' }),
+									activeFile.name
+								);
+								break;
+							case 'docx':
+							case 'doc':
+								formData.append(
+									'docx_file',
+									new Blob([pdfContent], {
+										type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+									}),
+									activeFile.name
+								);
+								break;
+							case 'pptx':
+							case 'ppt':
+								formData.append(
+									'pptx_file',
+									new Blob([pdfContent], {
+										type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+									}),
+									activeFile.name
+								);
+								break;
+						}
+						formData.append(
+							'extract_images',
+							this.settings.extractContent !== 'text' ? 'true' : 'false'
+						);
+						formData.append('langs', this.settings.langs ?? 'en');
+						formData.append(
+							'force_ocr',
+							this.settings.forceOCR ? 'true' : 'false'
+						);
+						formData.append(
+							'paginate',
+							this.settings.paginate ? 'true' : 'false'
+						);
+
+						const response = await fetch(
+							`https://datalab.marker.io/api/v1/marker`,
+							{
+								method: 'POST',
+								body: formData,
+								headers: {
+									'X-Api-Key': this.settings.apiKey ?? '',
+								},
+							}
+						);
+
+						// response only returns 200 with a json object if the conversion was successful and a request_check_url for polling the result
+						if (response.status === 200 || response.status === 422) {
+							const data = await response.json();
+							if (response.status === 422) {
+								new Notice(`Failed! Err: ${data.detail.msg}`);
+								return false;
+							}
+							const result = await this.pollForConversionResult(
+								data.request_check_url
+							);
+							await this.processConversionResult(
+								result,
+								folderPath,
+								activeFile
+							);
+						} else {
+							throw new Error(`HTTP error! status: ${response.status}`);
+						}
+
+						new Notice('PDF conversion completed');
+					} catch (error) {
+						console.error('Error during PDF conversion:', error);
+						new Notice(
+							'Error during PDF conversion. Check console for details.'
+						);
+					}
+				}
+			})
+			.catch((error) => {
+				console.error('Error during PDF conversion:', error);
+				new Notice('Error during PDF conversion. Check console for details.');
 			});
 		return true;
 	}
@@ -233,6 +423,27 @@ export default class Marker extends Plugin {
 		return response.json();
 	}
 
+	private async pollForConversionResult(requestCheckUrl: string): Promise<any> {
+		let response = await fetch(requestCheckUrl, {
+			headers: {
+				'X-Api-Key': this.settings.apiKey ?? '',
+			},
+		});
+		let data = await response.json();
+		let maxRetries = 300;
+		while (data.status !== 'complete' && maxRetries > 0) {
+			maxRetries--;
+			await new Promise((resolve) => setTimeout(resolve, 2000));
+			response = await fetch(requestCheckUrl, {
+				headers: {
+					'X-Api-Key': this.settings.apiKey ?? '',
+				},
+			});
+			data = await response.json();
+		}
+		return data;
+	}
+
 	private async processConversionResult(
 		data: any[],
 		folderPath: string,
@@ -271,8 +482,10 @@ export default class Marker extends Plugin {
 				);
 			}
 			if (this.settings.writeMetadata) {
+				// metadata is called meta in datalab
+				const metadata = converted.meta || converted.metadata;
 				await this.addMetadataToMarkdownFile(
-					converted.metadata,
+					metadata,
 					folderPath,
 					originalFile
 				);
@@ -439,34 +652,88 @@ export default class Marker extends Plugin {
 	}
 
 	public testConnection(): Promise<boolean> {
-		try {
-			const request = new FormData();
-			request.append('pdf_file', new Blob(), 'test.pdf');
-			request.append('extract_images', 'false');
+		// Test connection to the Marker API, different for datalab and selfhosted
+		if (this.settings.apiEndpoint === 'datalab') {
+			// Test connection to the Datalab Marker API
+			if (!this.settings.apiKey) {
+				new Notice('Err: Datalab API key not set');
+				return Promise.resolve(false);
+			} else {
+				try {
+					// test /api/v1/user_health endpoint, okay when status is 200 and json status is 'ok'
+					return fetch(`https://datalab.marker.io/api/v1/user_health`, {
+						headers: {
+							'X-Api-Key': this.settings.apiKey,
+						},
+					})
+						.then((response) => {
+							if (response.status !== 200) {
+								new Notice(
+									`Error connecting to Datalab Marker API: ${response.status}`
+								);
+								console.error(
+									'Error connecting to Datalab Marker API:',
+									response.status
+								);
+								return false;
+							} else {
+								return response.json().then((data) => {
+									if (data.status === 'ok') {
+										new Notice('Connection successful!');
+										return true;
+									} else {
+										new Notice('Error connecting to Datalab Marker API');
+										console.error(
+											'Error connecting to Datalab Marker API:',
+											data
+										);
+										return false;
+									}
+								});
+							}
+						})
+						.catch((error) => {
+							new Notice('Error connecting to Datalab Marker API');
+							console.error('Error connecting to Datalab Marker API:', error);
+							return false;
+						});
+				} catch (error) {
+					new Notice('Error connecting t Datalabo Marker API');
+					console.error('Error connecting to Datalab Marker API:', error);
+					return Promise.resolve(false);
+				}
+			}
+		} else {
+			// Test connection to the selfhosted Marker API
+			try {
+				const request = new FormData();
+				request.append('pdf_file', new Blob(), 'test.pdf');
+				request.append('extract_images', 'false');
 
-			return fetch(`http://${this.settings.markerEndpoint}/convert`, {
-				method: 'POST',
-				body: request,
-			})
-				.then((response) => {
-					if (response.status !== 200) {
-						new Notice(`Error connecting to Marker API: ${response.status}`);
-						console.error('Error connecting to Marker API:', response.status);
-						return false;
-					} else {
-						new Notice('Connection successful!');
-						return true;
-					}
+				return fetch(`http://${this.settings.markerEndpoint}/convert`, {
+					method: 'POST',
+					body: request,
 				})
-				.catch((error) => {
-					new Notice('Error connecting to Marker API');
-					console.error('Error connecting to Marker API:', error);
-					return false;
-				});
-		} catch (error) {
-			new Notice('Error connecting to Marker API');
-			console.error('Error connecting to Marker API:', error);
-			return Promise.resolve(false);
+					.then((response) => {
+						if (response.status !== 200) {
+							new Notice(`Error connecting to Marker API: ${response.status}`);
+							console.error('Error connecting to Marker API:', response.status);
+							return false;
+						} else {
+							new Notice('Connection successful!');
+							return true;
+						}
+					})
+					.catch((error) => {
+						new Notice('Error connecting to Marker API');
+						console.error('Error connecting to Marker API:', error);
+						return false;
+					});
+			} catch (error) {
+				new Notice('Error connecting to Marker API');
+				console.error('Error connecting to Marker API:', error);
+				return Promise.resolve(false);
+			}
 		}
 	}
 
@@ -511,6 +778,79 @@ class MarkerSettingTab extends PluginSettingTab {
 				button.setButtonText('Test connection').onClick(() => {
 					this.plugin.testConnection();
 				})
+			);
+
+		// setting for the API endpoint (datalab or selfhosted)
+		new Setting(containerEl)
+			.setName('API endpoint')
+			.setDesc('Select the API endpoint to use')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('datalab', 'Datalab')
+					.addOption('selfhosted', 'Selfhosted')
+					.setValue(this.plugin.settings.apiEndpoint)
+					.onChange(async (value) => {
+						this.plugin.settings.apiEndpoint = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// API KEY field for datalab, only shown when datalab is selected
+		const apiKeyField = new Setting(containerEl)
+			.setName('API Key')
+			.setDesc('Enter your Datalab API key')
+			.addText((text) =>
+				text
+					.setPlaceholder('API Key')
+					.setValue(this.plugin.settings.apiKey ?? '')
+					.onChange(async (value) => {
+						this.plugin.settings.apiKey = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// langs setting for the languages to extract, only shown when datalab is selected
+		const langsField = new Setting(containerEl)
+			.setName('Languages')
+			.setDesc(
+				'The languages to use if OCR is needed, separated by commas. See <a href="https://github.com/VikParuchuri/surya/blob/master/surya/languages.py">here</a> for a list of supported languages.'
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder('en')
+					.setValue(this.plugin.settings.langs ?? '')
+					.onChange(async (value) => {
+						this.plugin.settings.langs = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// setting for whether to force OCR, only shown when datalab is selected
+		const forceOCRToggle = new Setting(containerEl)
+			.setName('Force OCR')
+			.setDesc(
+				'Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages)'
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.forceOCR ?? false)
+					.onChange(async (value) => {
+						this.plugin.settings.forceOCR = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// setting for whether to paginate the md with hr, only shown when datalab is selected
+		const paginateToggle = new Setting(containerEl)
+			.setName('Paginate')
+			.setDesc('Add horizontal rules between each page')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.paginate ?? false)
+					.onChange(async (value) => {
+						this.plugin.settings.paginate = value;
+						await this.plugin.saveSettings();
+					})
 			);
 
 		// setting for how to bundle the pdf (options are new folder for each pdf or everything in the current folder)
@@ -611,6 +951,15 @@ class MarkerSettingTab extends PluginSettingTab {
 			writeMetadataToggle.settingEl.toggle(this.plugin.settings.writeMetadata);
 		};
 
+		// Helper function to update the state of the 'API Key' setting
+		const updateAPIKeySetting = (apiEndpoint: string) => {
+			apiKeyField.settingEl.toggle(apiEndpoint === 'datalab');
+			langsField.settingEl.toggle(apiEndpoint === 'datalab');
+			forceOCRToggle.settingEl.toggle(apiEndpoint === 'datalab');
+			paginateToggle.settingEl.toggle(apiEndpoint === 'datalab');
+		};
+
+		updateAPIKeySetting(this.plugin.settings.apiEndpoint);
 		updateMovePDFSetting(this.plugin.settings.createFolder);
 		updateWriteMetadataSetting(this.plugin.settings.extractContent);
 	}
