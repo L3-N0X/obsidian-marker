@@ -355,6 +355,7 @@ export default class Marker extends Plugin {
 											folderPath,
 											activeFile
 										);
+										new Notice('PDF conversion completed');
 									} else {
 										console.error('Error with datalab: ', data.detail);
 										if (typeof data.detail === 'string') {
@@ -379,8 +380,6 @@ export default class Marker extends Plugin {
 							);
 							throw error;
 						}
-
-						new Notice('PDF conversion completed');
 					} catch (error) {
 						console.error('Error during PDF conversion:', error);
 						new Notice(
@@ -545,55 +544,48 @@ export default class Marker extends Plugin {
 	}
 
 	private async processConversionResult(
-		data: any[],
+		data: any,
 		folderPath: string,
 		originalFile: TFile
 	) {
-		for (const converted of data) {
-			if (this.settings.extractContent !== 'images') {
-				await this.createMarkdownFile(
-					converted.markdown,
-					folderPath,
-					originalFile
-				);
-			}
-			if (this.settings.extractContent !== 'text') {
-				let imageFolderPath = folderPath;
+		if (Array.isArray(data) && data.length === 1) {
+			data = data[0];
+		} else if (Array.isArray(data) && data.length > 1) {
+			new Notice('Error, multiple files returned');
+			return;
+		}
+
+		if (this.settings.extractContent !== 'images') {
+			await this.createMarkdownFile(data.markdown, folderPath, originalFile);
+		}
+		if (this.settings.extractContent !== 'text') {
+			let imageFolderPath = folderPath;
+			if (
+				this.settings.createAssetSubfolder &&
+				data.images &&
+				Object.keys(data.images).length > 0
+			) {
 				if (
-					this.settings.createAssetSubfolder &&
-					converted.images &&
-					Object.keys(converted.images).length > 0
+					!(
+						this.app.vault.getAbstractFileByPath(
+							folderPath + 'assets'
+						) instanceof TFolder
+					)
 				) {
-					if (
-						!(
-							this.app.vault.getAbstractFileByPath(
-								folderPath + 'assets'
-							) instanceof TFolder
-						)
-					) {
-						await this.app.vault.createFolder(folderPath + 'assets/');
-					}
-					imageFolderPath += 'assets/';
+					await this.app.vault.createFolder(folderPath + 'assets/');
 				}
-				await this.createImageFiles(
-					converted.images,
-					imageFolderPath,
-					originalFile
-				);
+				imageFolderPath += 'assets/';
 			}
-			if (this.settings.writeMetadata) {
-				// metadata is called meta in datalab
-				const metadata = converted.meta || converted.metadata;
-				await this.addMetadataToMarkdownFile(
-					metadata,
-					folderPath,
-					originalFile
-				);
-			}
-			if (this.settings.movePDFtoFolder) {
-				const newFilePath = folderPath + originalFile.name;
-				await this.app.vault.rename(originalFile, newFilePath);
-			}
+			await this.createImageFiles(data.images, imageFolderPath, originalFile);
+		}
+		if (this.settings.writeMetadata) {
+			// metadata is called meta in datalab
+			const metadata = data.meta || data.metadata;
+			await this.addMetadataToMarkdownFile(metadata, folderPath, originalFile);
+		}
+		if (this.settings.movePDFtoFolder) {
+			const newFilePath = folderPath + originalFile.name;
+			await this.app.vault.rename(originalFile, newFilePath);
 		}
 
 		if (this.settings.deleteOriginal) {
