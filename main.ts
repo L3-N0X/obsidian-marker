@@ -265,7 +265,7 @@ export default class Marker extends Plugin {
 							}
 						}
 
-						const fileContent = await this.app.vault.readBinary(activeFile);
+						const pdfContent = await this.app.vault.readBinary(activeFile);
 						if (
 							this.settings.extractContent === 'text' ||
 							this.settings.extractContent === 'all'
@@ -283,8 +283,8 @@ export default class Marker extends Plugin {
 							'----WebKitFormBoundary' +
 							Math.random().toString(36).substring(2);
 
-						// Create the multipart form-data as a string
-						let body = '';
+						// Create the multipart form-data manually
+						const parts = [];
 
 						// Add the file part based on the file extension
 						const fileFieldName = 'file';
@@ -305,17 +305,20 @@ export default class Marker extends Plugin {
 								break;
 						}
 
-						body += `--${boundary}\r\n`;
-						body += `Content-Disposition: form-data; name="${fileFieldName}"; filename="${activeFile.name}"\r\n`;
-						body += `Content-Type: ${contentType}\r\n\r\n`;
-						body += Buffer.from(fileContent).toString('binary');
-						body += '\r\n';
+						parts.push(
+							`--${boundary}\r\n` +
+								`Content-Disposition: form-data; name="${fileFieldName}"; filename="${activeFile.name}"\r\n` +
+								`Content-Type: ${contentType}\r\n\r\n`
+						);
+						parts.push(new Uint8Array(pdfContent));
+						parts.push('\r\n');
 
 						// Add other form fields
 						const addFormField = (name: string, value: string) => {
-							body += `--${boundary}\r\n`;
-							body += `Content-Disposition: form-data; name="${name}"\r\n\r\n`;
-							body += `${value}\r\n`;
+							parts.push(
+								`--${boundary}\r\n` +
+									`Content-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+							);
 						};
 
 						addFormField(
@@ -330,12 +333,27 @@ export default class Marker extends Plugin {
 						addFormField('paginate', this.settings.paginate ? 'true' : 'false');
 
 						// Append the closing boundary
-						body += `--${boundary}--\r\n`;
+						parts.push(`--${boundary}--\r\n`);
+
+						// Combine all parts into a single ArrayBuffer
+						const bodyParts = parts.map((part) =>
+							typeof part === 'string' ? new TextEncoder().encode(part) : part
+						);
+						const bodyLength = bodyParts.reduce(
+							(acc, part) => acc + part.byteLength,
+							0
+						);
+						const body = new Uint8Array(bodyLength);
+						let offset = 0;
+						for (const part of bodyParts) {
+							body.set(part, offset);
+							offset += part.byteLength;
+						}
 
 						const requestParams: RequestUrlParam = {
 							url: `https://www.datalab.to/api/v1/marker`,
 							method: 'POST',
-							body: body,
+							body: body.buffer,
 							headers: {
 								'Content-Type': `multipart/form-data; boundary=${boundary}`,
 								'X-Api-Key': this.settings.apiKey ?? '',
@@ -525,8 +543,12 @@ export default class Marker extends Plugin {
 			headers: {
 				'X-Api-Key': this.settings.apiKey ?? '',
 			},
+			throw: false,
 		});
 		let data = await response.json;
+		if (response.status >= 400) {
+			console.error(`Error while getting results, ${data.detail}`);
+		}
 		let maxRetries = 300;
 		while (data.status !== 'complete' && maxRetries > 0) {
 			maxRetries--;
@@ -537,8 +559,16 @@ export default class Marker extends Plugin {
 				headers: {
 					'X-Api-Key': this.settings.apiKey ?? '',
 				},
+				throw: false,
 			});
+			// inform the user that the conversion is still running
+			if (maxRetries % 10 === 0) {
+				new Notice('Converting...');
+			}
 			data = await response.json;
+			if (response.status >= 400) {
+				console.error(`Error while getting results, ${data.detail}`);
+			}
 		}
 		return data;
 	}
