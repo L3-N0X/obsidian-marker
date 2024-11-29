@@ -17,6 +17,7 @@ You can find the related repositories here:
 
 - [Marker Project](https://github.com/VikParuchuri/marker) (AI model for PDF conversion)
 - [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
+- [Marker API Docker Container](https://hub.docker.com/r/wirawan/marker-api) (Container for self-hosting, needs Nvidia GPU)
 - [datalab.to](https://www.datalab.to/) (Hosted API for the Marker AI model, provided by the developer himself)
 
 ## 🚀 Features
@@ -61,28 +62,30 @@ To use this plugin, you'll need:
 
 ### Which solution should I use?
 
-| Solution          | Pros                                             | Cons                                                                 |
-| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
-| **Hosted on datalab.to (recommended)** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars |
-| **Self-Hosted via Docker** | Full control over the conversion process, no costs for the API | - Requires a powerful machine, Setup can be complex for beginners |
-| **Self-Hosted via Python** | Easy to set up, no Docker required | May be slower than the Docker solution, less control over the process |
+
+| Solution                               | Pros                                                                                                | Cons                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Hosted on datalab.to (recommended)** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                                   |
+| **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | - Requires a powerful machine, Setup can be complex for beginners     |
+| **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | May be slower than the Docker solution, less control over the process |
 
 ## ⚙️ Settings
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| **API Endpoint** | 'datalab' | Select the API endpoint to use, either 'Datalab' or 'Selfhosted'. |
-| **Marker API Endpoint** | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint. |
-| **API Key** | - | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint. |
-| **Languages** | - | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint. |
-| **Force OCR** | `false` | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
-| **Paginate** | `false` | Add horizontal rules between each page. Only shown when 'Datalab' is selected as the API endpoint. |
-| **New Folder for Each PDF** | `true` | Create a new folder for each PDF that is converted. |
-| **Move PDF to Folder** | `false` | Move the PDF to the folder after conversion. Only shown when 'New Folder for Each PDF' is enabled. |
-| **Create Asset Subfolder** | `true` | Create an asset subfolder for images. |
-| **Extract Content** | 'all' | Select the content to extract from the PDF. Options: 'Extract everything', 'Text Only', 'Images Only'. |
-| **Write Metadata** | `true` | Write metadata as frontmatter in the Markdown file. |
-| **Delete Original PDF** | `false` | Delete the original PDF after conversion. |
+
+| Setting                     | Default          | Description                                                                                                                                                |
+| ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **API Endpoint**            | 'datalab'        | Select the API endpoint to use, either 'Datalab' or 'Selfhosted'.                                                                                          |
+| **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.                                                      |
+| **API Key**                 | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                                     |
+| **Languages**               | -                | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
+| **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
+| **Paginate**                | `false`          | Add horizontal rules between each page. Only shown when 'Datalab' is selected as the API endpoint.                                                         |
+| **New Folder for Each PDF** | `true`           | Create a new folder for each PDF that is converted.                                                                                                        |
+| **Move PDF to Folder**      | `false`          | Move the PDF to the folder after conversion. Only shown when 'New Folder for Each PDF' is enabled.                                                         |
+| **Create Asset Subfolder**  | `true`           | Create an asset subfolder for images.                                                                                                                      |
+| **Extract Content**         | 'all'            | Select the content to extract from the PDF. Options: 'Extract everything', 'Text Only', 'Images Only'.                                                     |
+| **Write Metadata**          | `true`           | Write metadata as frontmatter in the Markdown file.                                                                                                        |
+| **Delete Original PDF**     | `false`          | Delete the original PDF after conversion.                                                                                                                  |
 
 ## 🙏 Acknowledgements
 
