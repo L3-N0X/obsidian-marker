@@ -578,10 +578,19 @@ export default class Marker extends Plugin {
 		folderPath: string,
 		originalFile: TFile
 	) {
-		if (Array.isArray(data) && data.length === 1) {
-			data = data[0];
+		if (
+			Array.isArray(data) &&
+			data.length === 1 &&
+			data[0].result != undefined
+		) {
+			data = data[0].result;
 		} else if (Array.isArray(data) && data.length > 1) {
-			new Notice('Error, multiple files returned');
+			new Notice('Error, malformed data returned');
+			return;
+		} else if (data.result != undefined) {
+			data = data.result;
+		} else {
+			new Notice('Error, conversion failed');
 			return;
 		}
 
