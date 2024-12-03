@@ -589,8 +589,11 @@ export default class Marker extends Plugin {
 			return;
 		} else if (data.result != undefined) {
 			data = data.result;
+		} else if (Array.isArray(data) && data.length === 1) {
+			// Datalab
+			data = data[0];
 		} else {
-			new Notice('Error, conversion failed');
+			new Notice('Error, parsing data failed');
 			return;
 		}
 
