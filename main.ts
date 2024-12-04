@@ -590,12 +590,9 @@ export default class Marker extends Plugin {
 		} else if (data.result != undefined) {
 			data = data.result;
 		} else if (Array.isArray(data) && data.length === 1) {
-			// Datalab
 			data = data[0];
-		} else {
-			new Notice('Error, parsing data failed');
-			return;
 		}
+		// else the data is already correct (Datalab)!
 
 		if (this.settings.extractContent !== 'images') {
 			await this.createMarkdownFile(data.markdown, folderPath, originalFile);
