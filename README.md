@@ -11,14 +11,14 @@
 Welcome to this Obsidian PDF to Markdown Converter! This plugin brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of Marker through a self-hosted API or by using the hosted solution on [datalab.to](https://www.datalab.to/), this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files, with support for tables, formulas and more!
 
 > [!IMPORTANT]
-> This plugin requires a Marker API endpoint to function. Without an endpoint, the application won't work.
+> This plugin requires a Marker API endpoint, a paid account for datalab or the python api of marker to work. Without an endpoint, the application can't convert anything.
 
 You can find the related repositories here:
 
-- [Marker Project](https://github.com/VikParuchuri/marker) (AI model for PDF conversion)
-- [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
-- [Marker API Docker Container](https://hub.docker.com/r/wirawan/marker-api) (Container for self-hosting, needs Nvidia GPU)
+- [Marker Project](https://github.com/VikParuchuri/marker) (AI model for PDF conversion + Simple Python API)
 - [datalab.to](https://www.datalab.to/) (Hosted API for the Marker AI model, provided by the developer himself)
+- [Marker API Docker Container](https://hub.docker.com/r/wirawan/marker-api) (Container for self-hosting, needs Nvidia GPU)
+- [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
 
 ## 🚀 Features
 
@@ -48,7 +48,7 @@ When you want to support the development, consider buying me a coffee:
 To use this plugin, you'll need:
 
 1. A working Obsidian installation
-2. Access to a Marker API endpoint (self-hosted or paid service)
+2. Access to a Marker API endpoint (self-hosted or paid service or python api)
 
 ## 🔧 Setup
 
@@ -56,27 +56,28 @@ To use this plugin, you'll need:
 2. (Optional) Set up the self-hosted Marker API:
 
    - Use Docker on a machine with a solid GPU/CPU
-   - (Optional) Make the endpoint available to other devices (e.g., using Tailscale)
-   - Alternatively, host in the cloud or run the Python server as needed
+   - (Optional) Make the endpoint available to other devices (e.g., using [Tailscale](https://tailscale.com/))
+   - Alternatively, host in the cloud or run the Python server when needed
 3. Configure your Marker API endpoint in the plugin settings
 
 ### Which solution should I use?
 
 
-| Solution                               | Pros                                                                                                | Cons                                                                  |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Hosted on datalab.to (recommended)** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                                   |
-| **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | - Requires a powerful machine, Setup can be complex for beginners     |
-| **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | May be slower than the Docker solution, less control over the process |
+| Solution                               | Pros                                                                                                | Cons                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Hosted on datalab.to (recommended)** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                             |
+| **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | Requires a powerful machine, Setup can be complex for beginners |
+| **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | Not all features available                                      |
 
 ## ⚙️ Settings
 
 
 | Setting                     | Default          | Description                                                                                                                                                |
 | ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **API Endpoint**            | 'datalab'        | Select the API endpoint to use, either 'Datalab' or 'Selfhosted'.                                                                                          |
-| **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.                                                      |
-| **API Key**                 | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                                     |
+| **API Endpoint**            | 'datalab'        | Select the API endpoint to use, either 'Datalab' 'Selfhosted' for Docker/Marker API or 'Python API'.                                                       |
+| **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.  |
+| **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python API' is selected as the API endpoint.                                                   |
+| **API Key**                 | -                | Enter your Datalab API key. Option is only shown when 'Datalab' is selected as the API endpoint.                                                           |
 | **Languages**               | -                | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
 | **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
 | **Paginate**                | `false`          | Add horizontal rules between each page. Only shown when 'Datalab' is selected as the API endpoint.                                                         |
