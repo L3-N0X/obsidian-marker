@@ -11,6 +11,25 @@ import { BaseConverter, ConversionResult } from './../converter';
 import { deleteOriginalFile } from '../utils/fileUtils';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 
+// Define interfaces for Python API responses
+interface PythonApiSuccessResponse {
+  format: string;
+  output: string;
+  images: Record<string, string>;
+  metadata: Record<string, any>;
+  success: boolean;
+}
+
+interface PythonApiErrorDetail {
+  loc: [string, number];
+  msg: string;
+  type: string;
+}
+
+interface PythonApiErrorResponse {
+  detail: PythonApiErrorDetail[];
+}
+
 export class PythonAPIConverter extends BaseConverter {
   async convert(
     app: App,
@@ -54,8 +73,15 @@ export class PythonAPIConverter extends BaseConverter {
 
       if (response.status !== 200) {
         try {
-          const errorData = JSON.parse(response.text);
-          const errorMsg = errorData?.error || `HTTP ${response.status}`;
+          // Try to parse as error response
+          const errorData = JSON.parse(response.text) as PythonApiErrorResponse;
+          let errorMsg = `HTTP ${response.status}`;
+
+          // Extract detailed error message if available
+          if (errorData.detail && errorData.detail.length > 0) {
+            errorMsg = errorData.detail.map((err) => err.msg).join('; ');
+          }
+
           console.error('Python API error response:', errorData);
           new Notice(`Python API conversion failed: ${errorMsg}`);
           return false;
@@ -76,19 +102,20 @@ export class PythonAPIConverter extends BaseConverter {
       }
 
       try {
-        const responseData = JSON.parse(response.text);
+        const responseData = JSON.parse(
+          response.text
+        ) as PythonApiSuccessResponse;
 
         // Format the response into a valid ConversionResult
         const conversionResult: ConversionResult = {
           success: responseData.success || false,
-          markdown: responseData.output || responseData.markdown || '',
+          markdown: responseData.output || '',
           images: responseData.images || {},
-          metadata: responseData.metadata || responseData.meta || {},
+          metadata: responseData.metadata || {},
         };
 
         if (!conversionResult.success) {
-          conversionResult.error =
-            responseData.error || 'Unknown conversion error';
+          conversionResult.error = 'Unknown conversion error';
           console.error(
             `Python API conversion failed: ${conversionResult.error}`,
             responseData
@@ -144,20 +171,9 @@ export class PythonAPIConverter extends BaseConverter {
   ): Promise<boolean> {
     try {
       const requestParams: RequestUrlParam = {
-        url: `http://${settings.pythonEndpoint}/marker`,
-        method: 'POST',
+        url: `http://${settings.pythonEndpoint}/`,
+        method: 'GET',
         throw: false,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filepath: 'test',
-          page_range: '',
-          languages: settings.langs ?? 'en',
-          force_ocr: settings.forceOCR ?? false,
-          paginate_output: settings.paginate ?? false,
-          output_format: 'markdown',
-        }),
       };
       const response = await requestUrl(requestParams);
       if (response.status === 200) {

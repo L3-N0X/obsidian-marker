@@ -4,6 +4,37 @@ import { BaseConverter, ConversionResult } from './../converter';
 import { checkForExistingFiles } from '../utils/fileUtils';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 
+// Define interfaces for Docker API responses based on OpenAPI spec
+interface GeneralMetadata {
+  languages?: string | string[] | null;
+  toc?: any[] | null;
+  pages?: number | null;
+  custom_metadata?: Record<string, any>;
+}
+
+interface PDFConversionResult {
+  filename: string;
+  markdown: string;
+  metadata: GeneralMetadata;
+  images: Record<string, string>;
+  status: string;
+}
+
+interface ConversionResponse {
+  status: string;
+  result?: PDFConversionResult | null;
+}
+
+interface ValidationError {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+}
+
+interface HTTPValidationError {
+  detail: ValidationError[];
+}
+
 export class MarkerApiDockerConverter extends BaseConverter {
   async convert(
     app: App,
@@ -28,63 +59,13 @@ export class MarkerApiDockerConverter extends BaseConverter {
 
     try {
       const pdfContent = await app.vault.readBinary(file);
-      const apiResponse = await this.convertPDFContent(settings, pdfContent);
+      const response = await this.convertPDFContent(settings, pdfContent);
 
-      // Format the response into a valid ConversionResult
-      const conversionResult: ConversionResult = {
-        success: true,
-        error: undefined,
-      };
+      // Process the API response
+      const conversionResult = this.processApiResponse(response);
 
-      // Handle various response formats from the Docker API
-      if (
-        Array.isArray(apiResponse) &&
-        apiResponse.length === 1 &&
-        apiResponse[0].result !== undefined
-      ) {
-        const resultData = apiResponse[0].result;
-        conversionResult.markdown =
-          resultData.markdown || resultData.output || '';
-        conversionResult.images = resultData.images || {};
-        conversionResult.metadata =
-          resultData.meta || resultData.metadata || {};
-      } else if (apiResponse.result !== undefined) {
-        const resultData = apiResponse.result;
-        conversionResult.markdown =
-          resultData.markdown || resultData.output || '';
-        conversionResult.images = resultData.images || {};
-        conversionResult.metadata =
-          resultData.meta || resultData.metadata || {};
-      } else if (
-        apiResponse.success &&
-        typeof apiResponse.output === 'string'
-      ) {
-        conversionResult.markdown = apiResponse.output;
-        conversionResult.images = apiResponse.images || {};
-        conversionResult.metadata =
-          apiResponse.metadata || apiResponse.meta || {};
-      } else if (Array.isArray(apiResponse) && apiResponse.length === 1) {
-        // Datalab format
-        const resultData = apiResponse[0];
-        conversionResult.markdown =
-          resultData.markdown || resultData.output || '';
-        conversionResult.images = resultData.images || {};
-        conversionResult.metadata =
-          resultData.meta || resultData.metadata || {};
-      } else {
-        // Direct format
-        conversionResult.markdown =
-          apiResponse.markdown || apiResponse.output || '';
-        conversionResult.images = apiResponse.images || {};
-        conversionResult.metadata =
-          apiResponse.meta || apiResponse.metadata || {};
-      }
-
-      if (!conversionResult.markdown && !conversionResult.images) {
-        conversionResult.success = false;
-        conversionResult.error = 'No content returned from conversion service';
-        console.error('Invalid conversion result format:', apiResponse);
-        new Notice('Error: No valid content in conversion result');
+      if (!conversionResult.success) {
+        new Notice(`Conversion failed: ${conversionResult.error}`);
         return false;
       }
 
@@ -109,6 +90,28 @@ export class MarkerApiDockerConverter extends BaseConverter {
       return false;
     }
   }
+
+  /**
+   * Process the API response according to the OpenAPI spec
+   */
+  private processApiResponse(response: ConversionResponse): ConversionResult {
+    // Check if we have a successful response with result
+    if (response.status === 'Success' && response.result) {
+      return {
+        success: true,
+        markdown: response.result.markdown || '',
+        images: response.result.images || {},
+        metadata: response.result.metadata || {},
+      };
+    }
+
+    // If there's no result or status isn't Success, it's an error
+    return {
+      success: false,
+      error: `Conversion failed with status: ${response.status || 'Unknown'}`,
+    };
+  }
+
   catch(fileError: { message: any; stack: any }) {
     console.error(
       'Failed to read PDF file:',
@@ -132,66 +135,16 @@ export class MarkerApiDockerConverter extends BaseConverter {
     }
 
     try {
-      // Generate a random boundary string
-      const boundary =
-        '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
-
-      // Create the multipart form-data manually
-      const parts = [];
-
-      // Add the pdf_file part (empty file)
-      parts.push(
-        `--${boundary}\r\n` +
-          'Content-Disposition: form-data; name="pdf_file"; filename="test.pdf"\r\n' +
-          'Content-Type: application/pdf\r\n\r\n'
-      );
-      parts.push(new Uint8Array(0)); // Empty file
-      parts.push('\r\n');
-
-      // Add extract_images part
-      parts.push(
-        `--${boundary}\r\n` +
-          'Content-Disposition: form-data; name="extract_images"\r\n\r\n' +
-          'false\r\n'
-      );
-
-      // Append the closing boundary
-      parts.push(`--${boundary}--\r\n`);
-
-      // Combine all parts into a single ArrayBuffer
-      const bodyParts = parts.map((part) =>
-        typeof part === 'string' ? new TextEncoder().encode(part) : part
-      );
-      const bodyLength = bodyParts.reduce(
-        (acc, part) => acc + part.byteLength,
-        0
-      );
-      const body = new Uint8Array(bodyLength);
-      let offset = 0;
-      for (const part of bodyParts) {
-        body.set(part, offset);
-        offset += part.byteLength;
-      }
-
       const requestParams: RequestUrlParam = {
-        url: `http://${settings.markerEndpoint}/convert`,
-        method: 'POST',
-        body: body.buffer,
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-        throw: false, // Don't throw on non-200 status codes
+        url: `http://${settings.markerEndpoint}/health`,
+        method: 'GET',
+        throw: false,
       };
 
       const response = await requestUrl(requestParams);
 
       if (response.status !== 200) {
-        const errorDetail = response.text
-          ? `: ${response.text.substring(0, 100)}`
-          : '';
-        new Notice(
-          `Docker API connection failed: HTTP ${response.status}${errorDetail}`
-        );
+        new Notice(`Docker API connection failed: HTTP ${response.status}`);
         console.error(
           `Docker API connection failed: HTTP ${response.status}`,
           response
@@ -209,10 +162,11 @@ export class MarkerApiDockerConverter extends BaseConverter {
       return false;
     }
   }
+
   private async convertPDFContent(
     settings: MarkerSettings,
     pdfContent: ArrayBuffer
-  ): Promise<any> {
+  ): Promise<ConversionResponse> {
     // Generate a random boundary string
     const boundary =
       '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
@@ -261,21 +215,35 @@ export class MarkerApiDockerConverter extends BaseConverter {
       headers: {
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
+      throw: false,
     };
 
     try {
       const response = await requestUrl(requestParams);
+
       if (response.status >= 400) {
-        const errorMessage =
-          response.json?.error || response.text || `HTTP ${response.status}`;
-        console.error(`Marker API error: ${errorMessage}`);
-        throw new Error(`Server returned error: ${errorMessage}`);
+        // Try to parse as validation error
+        try {
+          const errorData = response.json as HTTPValidationError;
+          const errorMessages = errorData.detail
+            .map((err) => err.msg)
+            .join('; ');
+          console.error(`Marker API validation error: ${errorMessages}`);
+          throw new Error(`Validation error: ${errorMessages}`);
+        } catch (parseError) {
+          // If parsing fails, use generic error
+          const errorMessage = response.text || `HTTP ${response.status}`;
+          console.error(`Marker API error: ${errorMessage}`);
+          throw new Error(`Server returned error: ${errorMessage}`);
+        }
       }
+
       if (!response.json || Object.keys(response.json).length === 0) {
         console.error('Empty response received from Marker API');
         throw new Error('No data returned from Marker API');
       }
-      return response.json;
+
+      return response.json as ConversionResponse;
     } catch (error) {
       console.error('PDF conversion failed:', error.message, error.stack);
       throw error;
