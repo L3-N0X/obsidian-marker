@@ -1,93 +1,115 @@
 import { Plugin, TFile } from 'obsidian';
 import { MarkerSettings, DEFAULT_SETTINGS, MarkerSettingTab } from './settings';
-import {
-	convertPDFToMD,
-	convertWithDatalab,
-	convertWithPythonAPI,
-} from './conversion';
-import { testConnection } from './utils'; // Import testConnection
+import { Converter } from './converter';
+import { DatalabConverter } from './converters/datalabConverter';
+import { MarkerApiDockerConverter } from './converters/markerApiDocker';
+import { PythonAPIConverter } from './converters/markerPythonApi';
 
 export default class Marker extends Plugin {
-	settings: MarkerSettings;
+  settings: MarkerSettings;
+  converter: Converter;
 
-	async onload() {
-		await this.loadSettings();
-		this.addCommands();
-		this.addSettingTab(new MarkerSettingTab(this.app, this));
-		this.registerFileMenuEvent();
-	}
+  async onload() {
+    await this.loadSettings();
+    this.setConverter(); // Instantiate converter based on settings
+    this.addCommands();
+    this.addSettingTab(new MarkerSettingTab(this.app, this));
+    this.registerFileMenuEvent();
+  }
 
-	private registerFileMenuEvent() {
-		this.registerEvent(
-			this.app.workspace.on('file-menu', (menu, file, source) => {
-				if (!(file instanceof TFile) || !this.isValidFile(file)) return; // Use helper function
+  private setConverter() {
+    switch (this.settings.apiEndpoint) {
+      case 'datalab':
+        this.converter = new DatalabConverter();
+        break;
+      case 'selfhosted':
+        this.converter = new MarkerApiDockerConverter();
+        break;
+      case 'python-api':
+        this.converter = new PythonAPIConverter();
+        break;
+      default:
+        console.error('Invalid API endpoint setting.');
+        // Default to selfhosted if invalid setting
+        this.converter = new MarkerApiDockerConverter();
+    }
+  }
 
-				menu.addItem((item) => {
-					item.setIcon('pdf-file');
-					item.setTitle(this.getMenuItemTitle(file)); // Dynamic title
-					item.onClick(async () => {
-						await this.convertFile(file); // Use helper function
-					});
-				});
-			})
-		);
-	}
+  private registerFileMenuEvent() {
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file, source) => {
+        if (!(file instanceof TFile) || !this.isValidFile(file)) return;
 
-	private isValidFile(file: TFile): boolean {
-		const allowedExtensions =
-			this.settings.apiEndpoint === 'datalab'
-				? ['pdf', 'docx', 'pptx', 'ppt', 'doc']
-				: ['pdf'];
-		return allowedExtensions.includes(file.extension);
-	}
+        menu.addItem((item) => {
+          item.setIcon('pdf-file');
+          item.setTitle(this.getMenuItemTitle(file));
+          item.onClick(async () => {
+            await this.convertFile(file);
+          });
+        });
+      })
+    );
+  }
 
-	private getMenuItemTitle(file: TFile): string {
-		const titles = {
-			pdf: 'Convert PDF to MD',
-			docx: 'Convert DOCX to MD',
-			pptx: 'Convert PPTX to MD',
-			ppt: 'Convert PPT to MD',
-			doc: 'Convert DOC to MD',
-		};
-		return titles[file.extension as keyof typeof titles] || 'Convert to MD'; // Default title
-	}
+  private isValidFile(file: TFile): boolean {
+    const allowedExtensions =
+      this.settings.apiEndpoint === 'datalab'
+        ? ['pdf', 'docx', 'pptx', 'ppt', 'doc']
+        : ['pdf'];
+    return allowedExtensions.includes(file.extension);
+  }
 
-	private async convertFile(file: TFile) {
-		if (this.settings.apiEndpoint === 'datalab') {
-			await convertWithDatalab(this.app, this.settings, file);
-		} else if (this.settings.apiEndpoint === 'selfhosted') {
-			await convertPDFToMD(this.app, this.settings, file);
-		} else if (this.settings.apiEndpoint === 'python-api') {
-			await convertWithPythonAPI(this.app, this.settings, file); // <-- new branch
-		}
-	}
+  private getMenuItemTitle(file: TFile): string {
+    const titles = {
+      pdf: 'Convert PDF to MD',
+      docx: 'Convert DOCX to MD',
+      pptx: 'Convert PPTX to MD',
+      ppt: 'Convert PPT to MD',
+      doc: 'Convert DOC to MD',
+    };
+    return titles[file.extension as keyof typeof titles] || 'Convert to MD';
+  }
 
-	private addCommands() {
-		this.addCommand({
-			id: 'marker-convert-to-md',
-			name: 'Convert to MD',
-			checkCallback: (checking: boolean) => {
-				const activeFile = this.app.workspace.getActiveFile();
-				if (!activeFile || !this.isValidFile(activeFile)) return false;
+  private async convertFile(file: TFile) {
+    if (this.converter) {
+      await this.converter.convert(this.app, this.settings, file);
+    } else {
+      console.error('No converter initialized.');
+    }
+  }
 
-				if (checking) return true;
+  private addCommands() {
+    this.addCommand({
+      id: 'marker-convert-to-md',
+      name: 'Convert to MD',
+      checkCallback: (checking: boolean) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || !this.isValidFile(activeFile)) return false;
 
-				this.convertFile(activeFile); // Reuse convertFile function
-			},
-		});
-	}
+        if (checking) return true;
 
-	async onunload() {}
+        this.convertFile(activeFile);
+      },
+    });
+  }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+  async onunload() {}
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
 
-	public async testConnection(silent: boolean | undefined): Promise<boolean> {
-		return testConnection(this.app, this.settings, silent); // Call the utility function
-	}
+  async saveSettings() {
+    await this.saveData(this.settings);
+    this.setConverter();
+  }
+
+  public async testConnection(silent: boolean | undefined): Promise<boolean> {
+    if (this.converter) {
+      return this.converter.testConnection(this.settings, silent);
+    } else {
+      console.error('No converter initialized.');
+      return false;
+    }
+  }
 }
