@@ -1,12 +1,12 @@
 {
 	"name": "obsidian-marker",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"description": "Convert PDFs to rich Markdown, including images and ocr using the Marker API",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node version-bump.mjs"
 	},
 	"keywords": [],
 	"author": "L3-N0X",

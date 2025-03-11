@@ -24,3 +24,8 @@ writeFileSync('manifest.json', JSON.stringify(manifest, null, '\t'));
 let versions = JSON.parse(readFileSync('versions.json', 'utf8'));
 versions[targetVersion] = minAppVersion;
 writeFileSync('versions.json', JSON.stringify(versions, null, '\t'));
+
+// create a new commit with the updated files
+import { execSync } from 'child_process';
+execSync(`git add package.json manifest.json versions.json`);
+execSync(`git commit -m "Bump version to ${targetVersion}"`);
