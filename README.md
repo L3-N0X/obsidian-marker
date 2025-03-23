@@ -26,6 +26,7 @@ You can find the related repositories here:
 - **Formula Detection**: Accurately captures and converts mathematical formulas
 - **Table Extraction**: Preserves table structures in your Markdown output
 - **Image Handling**: Extracts and saves images from your PDFs and includes them in the markdown
+- **Batch Processing**: Convert multiple PDFs at once by selecting files with Alt + Click (Note: Processing multiple files may take considerable time depending on their size and complexity)
 - **Mobile Compatibility**: Works on both desktop and mobile Obsidian apps
 - **Flexible Output**: Choose between full content extraction or specific elements (text/images)
 
@@ -69,6 +70,15 @@ To use this plugin, you'll need:
 | **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | Requires a powerful machine, Setup can be complex for beginners |
 | **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | Not all features available                                      |
 
+### 🧾 Usage
+
+You can convert PDFs to Markdown in multiple ways:
+
+1. **Single PDF file**: Right-click on a PDF file in the file explorer and select "Convert to MD" from the context menu
+2. **Multiple PDF files**: Select multiple PDF files with Alt + Click and right-click to convert them all at once
+3. **PDF file in editor**: After opening a PDF file in the editor, click on the three dots in the top right corner and select "Convert to MD"
+4. **Use the command palette**: Open the command palette and search for "Convert PDF to MD" (only works if a PDF file is open)
+
 ## ⚙️ Settings
 
 
@@ -100,6 +110,9 @@ A huge thank you to these projects for their contributions to the community!
 ## 🐛 Troubleshooting
 
 If you encounter issues related to the plugin itself, please open an issue in this repository. For problems with the conversion process or API, please refer to the Marker and Marker API repositories.
+
+> [!NOTE]
+> When converting multiple files at once, be patient as the process can take a significant amount of time depending on the size and complexity of your PDFs. For very large batches, consider processing them in smaller groups.
 
 ## 🤝 Contributing
 

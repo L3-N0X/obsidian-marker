@@ -1,4 +1,4 @@
-import { Plugin, TFile } from 'obsidian';
+import { Plugin, TFile, Menu } from 'obsidian';
 import { MarkerSettings, DEFAULT_SETTINGS, MarkerSettingTab } from './settings';
 import { Converter } from './converter';
 import { DatalabConverter } from './converters/datalabConverter';
@@ -14,7 +14,7 @@ export default class Marker extends Plugin {
     this.setConverter(); // Instantiate converter based on settings
     this.addCommands();
     this.addSettingTab(new MarkerSettingTab(this.app, this));
-    this.registerFileMenuEvent();
+    this.registerFileMenuEvents();
   }
 
   private setConverter() {
@@ -35,16 +35,36 @@ export default class Marker extends Plugin {
     }
   }
 
-  private registerFileMenuEvent() {
+  private registerFileMenuEvents() {
+    // Register "Convert to MD" menu item for single PDF files
     this.registerEvent(
-      this.app.workspace.on('file-menu', (menu, file, source) => {
+      this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
         if (!(file instanceof TFile) || !this.isValidFile(file)) return;
-
         menu.addItem((item) => {
           item.setIcon('pdf-file');
           item.setTitle(this.getMenuItemTitle(file));
+          item.setSection('action');
           item.onClick(async () => {
             await this.convertFile(file);
+          });
+        });
+      })
+    );
+
+    // Register "Convert to MD" menu item for multiple PDF files
+    this.registerEvent(
+      this.app.workspace.on('files-menu', (menu: Menu, files: TFile[]) => {
+        const pdfFiles = files.filter((file) => this.isValidFile(file));
+        if (pdfFiles.length === 0) return;
+
+        menu.addItem((item) => {
+          item.setIcon('files');
+          item.setTitle('Convert ' + pdfFiles.length + ' files to MD');
+          item.setSection('action');
+          item.onClick(async (): Promise<void> => {
+            for (const file of pdfFiles) {
+              await this.convertFile(file);
+            }
           });
         });
       })
