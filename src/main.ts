@@ -4,6 +4,7 @@ import { Converter } from './converter';
 import { DatalabConverter } from './converters/datalabConverter';
 import { MarkerApiDockerConverter } from './converters/markerApiDocker';
 import { PythonAPIConverter } from './converters/markerPythonApi';
+import { MistralAIConverter } from './converters/mistralaiConverter';
 
 export default class Marker extends Plugin {
   settings: MarkerSettings;
@@ -27,6 +28,9 @@ export default class Marker extends Plugin {
         break;
       case 'python-api':
         this.converter = new PythonAPIConverter();
+        break;
+      case 'mistralai':
+        this.converter = new MistralAIConverter();
         break;
       default:
         console.error('Invalid API endpoint setting.');

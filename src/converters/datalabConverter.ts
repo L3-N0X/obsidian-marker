@@ -49,7 +49,7 @@ export class DatalabConverter extends BaseConverter {
       return true;
     }
 
-    if (!settings.apiKey) {
+    if (!settings.datalabApiKey) {
       new Notice('Error: Datalab API key is not configured');
       console.error('Missing Datalab API key in settings');
       return false;
@@ -130,7 +130,7 @@ export class DatalabConverter extends BaseConverter {
         body: formData.body,
         headers: {
           'Content-Type': `multipart/form-data; boundary=${formData.boundary}`,
-          'X-Api-Key': settings.apiKey ?? '',
+          'X-Api-Key': settings.datalabApiKey ?? '',
         },
         throw: false,
       };
@@ -375,7 +375,7 @@ export class DatalabConverter extends BaseConverter {
     settings: MarkerSettings,
     silent: boolean | undefined
   ): Promise<boolean> {
-    if (!settings.apiKey) {
+    if (!settings.datalabApiKey) {
       new Notice('Err: Datalab API key not set');
       return false;
     }
@@ -385,7 +385,7 @@ export class DatalabConverter extends BaseConverter {
         url: 'https://www.datalab.to/api/v1/user_health',
         method: 'GET',
         headers: {
-          'X-Api-Key': settings.apiKey,
+          'X-Api-Key': settings.datalabApiKey,
         },
       });
 
@@ -425,7 +425,7 @@ export class DatalabConverter extends BaseConverter {
         url: requestCheckUrl,
         method: 'GET',
         headers: {
-          'X-Api-Key': settings.apiKey ?? '',
+          'X-Api-Key': settings.datalabApiKey ?? '',
         },
         throw: false,
       });
@@ -455,7 +455,7 @@ export class DatalabConverter extends BaseConverter {
             url: requestCheckUrl,
             method: 'GET',
             headers: {
-              'X-Api-Key': settings.apiKey ?? '',
+              'X-Api-Key': settings.datalabApiKey ?? '',
             },
             throw: false,
           });
@@ -511,7 +511,7 @@ export class DatalabConverter extends BaseConverter {
   getConverterSettings(): ConverterSettingDefinition[] {
     return [
       {
-        id: 'apiKey',
+        id: 'datalabApiKey',
         name: 'API Key',
         description: 'Enter your Datalab API key',
         type: 'text',

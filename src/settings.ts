@@ -12,7 +12,9 @@ export interface MarkerSettings {
   movePDFtoFolder: boolean;
   createAssetSubfolder: boolean;
   apiEndpoint: string;
-  apiKey?: string;
+  apiKey?: string; // Keep for backward compatibility and selfhosted/python-api
+  datalabApiKey?: string; // Specific key for Datalab
+  mistralaiApiKey?: string; // Specific key for MistralAI
   langs?: string;
   forceOCR?: boolean;
   paginate?: boolean;
@@ -21,6 +23,9 @@ export interface MarkerSettings {
   stripExistingOCR?: boolean;
   useLLM?: boolean;
   skipCache?: boolean;
+  // MistralAI parameters
+  imageLimit?: number;
+  imageMinSize?: number; // Minimum height and width of images to extract
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -34,6 +39,8 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   createAssetSubfolder: true,
   apiEndpoint: 'selfhosted',
   apiKey: '',
+  datalabApiKey: '',
+  mistralaiApiKey: '',
   langs: 'en',
   forceOCR: false,
   paginate: false,
@@ -42,6 +49,8 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   stripExistingOCR: false,
   useLLM: false,
   skipCache: false,
+  imageLimit: 0,
+  imageMinSize: 0, // Default to 0 (no minimum size)
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -64,6 +73,7 @@ export class MarkerSettingTab extends PluginSettingTab {
           .addOption('datalab', 'Datalab')
           .addOption('selfhosted', 'Selfhosted')
           .addOption('python-api', 'Python API')
+          .addOption('mistralai', 'MistralAI')
           .setValue(this.plugin.settings.apiEndpoint)
           .onChange(async (value) => {
             this.plugin.settings.apiEndpoint = value;

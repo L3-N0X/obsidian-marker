@@ -8,17 +8,18 @@
 
 ## 🌟 Introduction
 
-Welcome to this Obsidian PDF to Markdown Converter! This plugin brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of Marker through a self-hosted API or by using the hosted solution on [datalab.to](https://www.datalab.to/), this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files, with support for tables, formulas and more!
+Welcome to this Obsidian PDF to Markdown Converter! This plugin brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of Marker through a self-hosted API, the hosted solution on [datalab.to](https://www.datalab.to/), or the powerful MistralAI OCR capabilities, this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files, with support for tables, formulas and more!
 
 > [!IMPORTANT]
-> This plugin requires a Marker API endpoint, a paid account for datalab or the python api of marker to work. Without an endpoint, the application can't convert anything.
+> This plugin requires a Marker API endpoint, a paid account for datalab, the python api of marker, or a free MistralAI API key to work. Without an endpoint, the application can't convert anything.
 
-You can find the related repositories here:
+You can find the related repositories and services here:
 
 - [Marker Project](https://github.com/VikParuchuri/marker) (AI model for PDF conversion + Simple Python API)
 - [datalab.to](https://www.datalab.to/) (Hosted API for the Marker AI model, provided by the developer himself)
 - [Marker API Docker Container](https://hub.docker.com/r/wirawan/marker-api) (Container for self-hosting, needs Nvidia GPU)
 - [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
+- [MistralAI](https://console.mistral.ai/) (Free OCR API with excellent results)
 
 ## 🚀 Features
 
@@ -29,10 +30,11 @@ You can find the related repositories here:
 - **Batch Processing**: Convert multiple PDFs at once by selecting files with Alt + Click (Note: Processing multiple files may take considerable time depending on their size and complexity)
 - **Mobile Compatibility**: Works on both desktop and mobile Obsidian apps
 - **Flexible Output**: Choose between full content extraction or specific elements (text/images)
+- **Smart Folder Integration**: If a folder with the PDF's name already exists, the plugin will ask if you want to integrate the new files into the existing folder
 
 ## 🛠 Why This Plugin?
 
-1. **Superior Extraction**: Utilizes the Marker project's advanced AI model for high-quality conversions
+1. **Superior Extraction**: Utilizes the Marker project's advanced AI model or MistralAI's powerful OCR for high-quality conversions
 2. **Mobile Accessibility**: Unlike many converters, this works seamlessly on mobile devices (when the API is accessible)
 3. **Customizable**: Tailor the conversion process to your specific needs
 4. **Obsidian Integration**: Converts PDFs directly within your Obsidian environment
@@ -49,26 +51,30 @@ When you want to support the development, consider buying me a coffee:
 To use this plugin, you'll need:
 
 1. A working Obsidian installation
-2. Access to a Marker API endpoint (self-hosted or paid service or python api)
+2. Access to a Marker API endpoint (self-hosted or paid service or python api) OR a free MistralAI API key
 
 ## 🔧 Setup
 
 1. Install the plugin in your Obsidian vault
-2. (Optional) Set up the self-hosted Marker API:
-
-   - Use Docker on a machine with a solid GPU/CPU
-   - (Optional) Make the endpoint available to other devices (e.g., using [Tailscale](https://tailscale.com/))
-   - Alternatively, host in the cloud or run the Python server when needed
-3. Configure your Marker API endpoint in the plugin settings
+2. Choose your conversion method:
+   - **MistralAI**: Get a free API key from [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys)
+   - **Datalab.to**: Sign up for a paid account
+   - **Self-hosted Marker API**: Set up Docker on a machine with a solid GPU/CPU
+   - **Python API**: Run the Python server when needed
+3. Configure your chosen endpoint/API key in the plugin settings
 
 ### Which solution should I use?
 
 
 | Solution                               | Pros                                                                                                | Cons                                                            |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **Hosted on datalab.to (recommended)** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                             |
+| **MistralAI (recommended)** | Completely free, excellent results in testing, easy setup with just an API key | Uploads your files to Mistral's servers (stored for at least 24h) |
+| **Hosted on datalab.to** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                             |
 | **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | Requires a powerful machine, Setup can be complex for beginners |
 | **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | Not all features available                                      |
+
+> [!NOTE]
+> **MistralAI Privacy Consideration**: When using the MistralAI endpoint, your PDFs will be uploaded to Mistral's servers for processing. These files are stored for at least 24 hours. If you have sensitive documents, consider using a self-hosted solution instead.
 
 ### 🧾 Usage
 
@@ -79,23 +85,27 @@ You can convert PDFs to Markdown in multiple ways:
 3. **PDF file in editor**: After opening a PDF file in the editor, click on the three dots in the top right corner and select "Convert to MD"
 4. **Use the command palette**: Open the command palette and search for "Convert PDF to MD" (only works if a PDF file is open)
 
+**Folder Integration**: If a folder with the same name as your PDF already exists, the plugin will ask if you want to integrate the new files into this existing folder. This allows you to update or add to already converted documents.
+
 ## ⚙️ Settings
 
 
 | Setting                     | Default          | Description                                                                                                                                                |
 | ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **API Endpoint**            | 'datalab'        | Select the API endpoint to use, either 'Datalab' 'Selfhosted' for Docker/Marker API or 'Python API'.                                                       |
+| **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python API', or 'MistralAI'                                                      |
 | **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.  |
 | **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python API' is selected as the API endpoint.                                                   |
-| **API Key**                 | -                | Enter your Datalab API key. Option is only shown when 'Datalab' is selected as the API endpoint.                                                           |
-| **Languages**               | -                | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
+| **Datalab API Key**          | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                           |
+| **MistralAI API Key**       | -                | Enter your MistralAI API key. Only shown when 'MistralAI' is selected as the API endpoint.                                                     |
+| **Languages**               | 'en'             | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
 | **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
-| **Paginate**                | `false`          | Add horizontal rules between each page. Only shown when 'Datalab' is selected as the API endpoint.                                                         |
-| **New Folder for Each PDF** | `true`           | Create a new folder for each PDF that is converted.                                                                                                        |
-| **Move PDF to Folder**      | `false`          | Move the PDF to the folder after conversion. Only shown when 'New Folder for Each PDF' is enabled.                                                         |
+| **Paginate**                | `false`          | Add horizontal rules between each page. Available for both Datalab and MistralAI endpoints.                                                         |
+| **Image Limit**             | `0`              | Maximum number of images to extract (0 for no limit). Only shown when 'MistralAI' is selected.                                                  |
+| **Image Minimum Size**      | `0`              | Minimum height and width of images to extract (0 for no minimum). Only shown when 'MistralAI' is selected.                                     |
+| **Move PDF to Folder**      | `false`          | Move the PDF to the folder after conversion.                                                        |
 | **Create Asset Subfolder**  | `true`           | Create an asset subfolder for images.                                                                                                                      |
 | **Extract Content**         | 'all'            | Select the content to extract from the PDF. Options: 'Extract everything', 'Text Only', 'Images Only'.                                                     |
-| **Write Metadata**          | `true`           | Write metadata as frontmatter in the Markdown file.                                                                                                        |
+| **Write Metadata**          | `false`          | Write metadata as frontmatter in the Markdown file.                                                                                                        |
 | **Delete Original PDF**     | `false`          | Delete the original PDF after conversion.                                                                                                                  |
 
 ## 🙏 Acknowledgements
@@ -104,6 +114,7 @@ This plugin wouldn't be possible without the incredible work of:
 
 - [Marker Project](https://github.com/VikParuchuri/marker): The AI model powering the conversions
 - [Marker API](https://github.com/adithya-s-k/marker-api): The API that enables self-hosting of the conversion service
+- [MistralAI](https://mistral.ai/): For providing the free OCR capabilities
 
 A huge thank you to these projects for their contributions to the community!
 
