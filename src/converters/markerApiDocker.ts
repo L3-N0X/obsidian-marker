@@ -167,6 +167,42 @@ export class MarkerApiDockerConverter extends BaseConverter {
     settings: MarkerSettings,
     pdfContent: ArrayBuffer
   ): Promise<ConversionResponse> {
+    try {
+      // First attempt with pdf_file field name
+      return await this.attemptConversion(settings, pdfContent, 'pdf_file');
+    } catch (error) {
+      // Check if the error is specifically about missing document_file
+      if (
+        error.message &&
+        error.message.includes('missing') &&
+        error.message.includes('document_file')
+      ) {
+        try {
+          // Retry with document_file field name
+          return await this.attemptConversion(
+            settings,
+            pdfContent,
+            'document_file'
+          );
+        } catch (retryError) {
+          console.error(
+            'Second PDF conversion attempt failed:',
+            retryError.message
+          );
+          throw retryError;
+        }
+      } else {
+        // If it's a different error, just throw it
+        throw error;
+      }
+    }
+  }
+
+  private async attemptConversion(
+    settings: MarkerSettings,
+    pdfContent: ArrayBuffer,
+    fieldName: string
+  ): Promise<ConversionResponse> {
     // Generate a random boundary string
     const boundary =
       '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
@@ -174,10 +210,10 @@ export class MarkerApiDockerConverter extends BaseConverter {
     // Create the multipart form-data manually
     const parts = [];
 
-    // Append the PDF file part
+    // Append the PDF file part with the specified field name
     parts.push(
       `--${boundary}\r\n` +
-        'Content-Disposition: form-data; name="pdf_file"; filename="document.pdf"\r\n' +
+        `Content-Disposition: form-data; name="${fieldName}"; filename="document.pdf"\r\n` +
         'Content-Type: application/pdf\r\n\r\n'
     );
     parts.push(new Uint8Array(pdfContent));
@@ -218,36 +254,31 @@ export class MarkerApiDockerConverter extends BaseConverter {
       throw: false,
     };
 
-    try {
-      const response = await requestUrl(requestParams);
+    const response = await requestUrl(requestParams);
 
-      if (response.status >= 400) {
-        // Try to parse as validation error
-        try {
-          const errorData = response.json as HTTPValidationError;
-          const errorMessages = errorData.detail
-            .map((err) => err.msg)
-            .join('; ');
-          console.error(`Marker API validation error: ${errorMessages}`);
-          throw new Error(`Validation error: ${errorMessages}`);
-        } catch (parseError) {
-          // If parsing fails, use generic error
-          const errorMessage = response.text || `HTTP ${response.status}`;
-          console.error(`Marker API error: ${errorMessage}`);
-          throw new Error(`Server returned error: ${errorMessage}`);
-        }
+    if (response.status >= 400) {
+      // Try to parse as validation error
+      try {
+        const errorData = response.json as HTTPValidationError;
+        const errorMessages = errorData.detail
+          .map((err) => `${err.type} at ${err.loc.join('.')} - ${err.msg}`)
+          .join('; ');
+        console.error(`Marker API validation error: ${errorMessages}`);
+        throw new Error(`Validation error: ${errorMessages}`);
+      } catch (parseError) {
+        // If parsing fails, use generic error
+        const errorMessage = response.text || `HTTP ${response.status}`;
+        console.error(`Marker API error: ${errorMessage}`);
+        throw new Error(`Server returned error: ${errorMessage}`);
       }
-
-      if (!response.json || Object.keys(response.json).length === 0) {
-        console.error('Empty response received from Marker API');
-        throw new Error('No data returned from Marker API');
-      }
-
-      return response.json as ConversionResponse;
-    } catch (error) {
-      console.error('PDF conversion failed:', error.message, error.stack);
-      throw error;
     }
+
+    if (!response.json || Object.keys(response.json).length === 0) {
+      console.error('Empty response received from Marker API');
+      throw new Error('No data returned from Marker API');
+    }
+
+    return response.json as ConversionResponse;
   }
 
   getConverterSettings(): ConverterSettingDefinition[] {
