@@ -1,14 +1,14 @@
 {
-	"id": "marker-api",
-	"name": "Marker PDF to MD",
-	"version": "1.4.5",
-	"minAppVersion": "0.15.0",
-	"description": "Convert PDFs to beautiful rich Markdown notes with tables, images, and OCR. Works with self-hosted Marker API and free Mistral OCR API!",
-	"author": "L3N0X",
-	"authorUrl": "https://github.com/L3-N0X",
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com/l3n0x",
-		"GitHub Sponsor": "https://github.com/sponsors/L3-N0X"
-	},
-	"isDesktopOnly": false
+  "id": "marker-api",
+  "name": "OCRAI - PDF to MD with AI",
+  "version": "1.4.5",
+  "minAppVersion": "0.15.0",
+  "description": "Convert PDFs to beautiful rich Markdown notes with tables, images, formulas and OCR. Works with self-hosted Marker API and free Mistral OCR API!",
+  "author": "L3N0X",
+  "authorUrl": "https://github.com/L3-N0X",
+  "fundingUrl": {
+    "Buy Me a Coffee": "https://buymeacoffee.com/l3n0x",
+    "GitHub Sponsor": "https://github.com/sponsors/L3-N0X"
+  },
+  "isDesktopOnly": false
 }
