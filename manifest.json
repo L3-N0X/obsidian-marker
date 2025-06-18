@@ -1,7 +1,7 @@
 {
 	"id": "marker-api",
 	"name": "Marker PDF to MD",
-	"version": "1.4.4",
+	"version": "1.4.5",
 	"minAppVersion": "0.15.0",
 	"description": "Convert PDFs to beautiful rich Markdown notes with tables, images, and OCR. Works with self-hosted Marker API and free Mistral OCR API!",
 	"author": "L3N0X",
