@@ -26,6 +26,10 @@ export interface MarkerSettings {
   // MistralAI parameters
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
+  // Post-processing options
+  addPageNumbers?: boolean;
+  pageNumberStart?: number;
+  addParagraphNumbers?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -51,6 +55,9 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   skipCache: false,
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
+  addPageNumbers: false,
+  pageNumberStart: 1,
+  addParagraphNumbers: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -182,6 +189,53 @@ export class MarkerSettingTab extends PluginSettingTab {
           })
       );
 
+    // Add a heading for post-processing settings
+    containerEl.createEl('h3', { text: 'Post-Processing' });
+
+    // Page number start input — declared before addPageNumbers toggle so its closure can reference it
+    const pageNumberStartSetting = new Setting(containerEl)
+      .setName('Page number start')
+      .setDesc('The page number of the first page in the PDF')
+      .addText((text) =>
+        text
+          .setPlaceholder('1')
+          .setValue(String(this.plugin.settings.pageNumberStart ?? 1))
+          .onChange(async (value) => {
+            const num = parseInt(value);
+            this.plugin.settings.pageNumberStart = isNaN(num) ? 1 : num;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Add page numbers')
+      .setDesc(
+        "Insert an italic page label (e.g. *Page 1*) above each page-break separator (---). Requires 'Paginate output' to be enabled in Converter Settings."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.addPageNumbers ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.addPageNumbers = value;
+            await this.plugin.saveSettings();
+            updatePageNumberStartSetting(value);
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Add paragraph numbers')
+      .setDesc(
+        'Prefix each prose paragraph with [¶N] to aid citation and verification. Skips headings, code blocks, tables, lists, images, and page separators.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.addParagraphNumbers ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.addParagraphNumbers = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // Helper function to update the state of the 'Move PDF to Folder' setting
     const updateMovePDFSetting = (createFolderEnabled: boolean) => {
       this.plugin.settings.movePDFtoFolder =
@@ -198,8 +252,14 @@ export class MarkerSettingTab extends PluginSettingTab {
       writeMetadataToggle.settingEl.toggle(canWriteMetadata);
     };
 
+    // Helper function to show/hide the page number start input
+    const updatePageNumberStartSetting = (enabled: boolean) => {
+      pageNumberStartSetting.settingEl.toggle(enabled);
+    };
+
     // Initialize settings state
     updateMovePDFSetting(this.plugin.settings.createFolder);
     updateWriteMetadataSetting(this.plugin.settings.extractContent);
+    updatePageNumberStartSetting(this.plugin.settings.addPageNumbers ?? false);
   }
 }

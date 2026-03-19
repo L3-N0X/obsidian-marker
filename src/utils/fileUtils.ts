@@ -149,6 +149,14 @@ export async function createMarkdownFile(
     markdown = markdown.replace(/!\[.*\]\(.*\)/g, '');
   }
 
+  // Page numbers must run before paragraph numbers so *Page N* labels are not themselves numbered
+  if (settings.addPageNumbers) {
+    markdown = addPageNumbersToMarkdown(markdown, settings.pageNumberStart ?? 1);
+  }
+  if (settings.addParagraphNumbers) {
+    markdown = addParagraphNumbersToMarkdown(markdown);
+  }
+
   const existingFile = app.vault.getAbstractFileByPath(filePath);
   if (existingFile instanceof TFile) {
     file = existingFile;
@@ -180,6 +188,65 @@ export async function addMetadataToMarkdownFile(
         console.error('Error adding metadata to markdown file:', error);
       });
   }
+}
+
+function addPageNumbersToMarkdown(markdown: string, startPage: number): string {
+  let pageNumber = startPage;
+  return markdown.replace(/\n\n---\n\n/g, () => {
+    const label = `\n\n*Page ${pageNumber}*\n\n---\n\n`;
+    pageNumber++;
+    return label;
+  });
+}
+
+function addParagraphNumbersToMarkdown(markdown: string): string {
+  // Extract YAML frontmatter so it is never numbered
+  let frontmatter = '';
+  let body = markdown;
+  const frontmatterMatch = markdown.match(/^---\n[\s\S]*?\n---\n/);
+  if (frontmatterMatch) {
+    frontmatter = frontmatterMatch[0];
+    body = markdown.slice(frontmatter.length);
+  }
+
+  const blocks = body.split(/\n\n/);
+
+  const isNonProse = (block: string): boolean => {
+    const t = block.trimStart();
+    if (t === '') return true;
+    if (/^#{1,6}\s/.test(t)) return true;    // headings
+    if (/^---+\s*$/.test(t)) return true;    // horizontal rules / page separators
+    if (/^```/.test(t)) return true;          // fenced code blocks
+    if (/^\|/.test(t)) return true;           // tables
+    if (/^>/.test(t)) return true;            // blockquotes
+    if (/^\s*[-*+]\s/.test(t)) return true;   // unordered lists
+    if (/^\s*\d+\.\s/.test(t)) return true;   // ordered lists
+    if (/^!\[/.test(t)) return true;          // images
+    if (/^\*Page \d+\*/.test(t)) return true; // page labels inserted by addPageNumbersToMarkdown
+    return false;
+  };
+
+  // Track whether we are inside a fenced code block across blank-line-split fragments
+  let insideCodeFence = false;
+  let paragraphNumber = 1;
+
+  const numberedBlocks = blocks.map((block) => {
+    const fenceCount = (block.match(/^```/gm) || []).length;
+    const startsWithFence = /^```/.test(block.trimStart());
+
+    if (insideCodeFence) {
+      if (fenceCount % 2 === 1) insideCodeFence = false;
+      return block;
+    }
+    if (startsWithFence) {
+      if (fenceCount % 2 === 1) insideCodeFence = true;
+      return block;
+    }
+    if (isNonProse(block)) return block;
+    return `[¶${paragraphNumber++}] ${block.trimStart()}`;
+  });
+
+  return frontmatter + numberedBlocks.join('\n\n');
 }
 
 function generateFrontmatter(metadata: { [key: string]: any }): string {
