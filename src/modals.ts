@@ -53,6 +53,71 @@ export class MarkerOkayCancelDialog extends Modal {
   }
 }
 
+export class MarkerNumberInputDialog extends Modal {
+  private onSubmit: (result: number | null) => void;
+  private title: string;
+  private message: string;
+  private defaultValue: number;
+
+  constructor(
+    app: App,
+    title: string,
+    message: string,
+    defaultValue: number,
+    onSubmit: (result: number | null) => void
+  ) {
+    super(app);
+    this.title = title;
+    this.message = message;
+    this.defaultValue = defaultValue;
+    this.onSubmit = onSubmit;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl('h2', { text: this.title });
+    contentEl.createEl('p', { text: this.message });
+
+    const input = contentEl.createEl('input', {
+      attr: {
+        type: 'number',
+        value: String(this.defaultValue),
+        min: '1',
+        style: 'width: 100%; margin-bottom: 1em;',
+      },
+    }) as HTMLInputElement;
+    input.focus();
+    input.select();
+
+    const buttonContainer = contentEl.createEl('div', {
+      attr: { class: 'modal-button-container' },
+    });
+    const okButton = buttonContainer.createEl('button', {
+      text: 'Confirm',
+      attr: { class: 'mod-cta' },
+    });
+    okButton.addEventListener('click', () => {
+      const num = parseInt(input.value);
+      this.onSubmit(isNaN(num) ? 1 : num);
+      this.close();
+    });
+    const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
+    cancelButton.addEventListener('click', () => {
+      this.onSubmit(null);
+      this.close();
+    });
+
+    input.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') okButton.click();
+    });
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
 export class MarkerSupportedLangsDialog extends Modal {
   title: string;
   message: string;

@@ -122,6 +122,8 @@ export async function createImageFiles(
   }
 }
 
+const WORD_SPLIT_THRESHOLD = 20000;
+
 export async function createMarkdownFile(
   app: App,
   settings: MarkerSettings,
@@ -129,7 +131,8 @@ export async function createMarkdownFile(
   folderPath: string,
   originalFile: TFile
 ) {
-  const fileName = originalFile.name.split('.')[0] + '.md';
+  const baseName = originalFile.name.split('.')[0];
+  const fileName = baseName + '.md';
   const filePath = folderPath + fileName;
   let file: TFile;
 
@@ -155,6 +158,29 @@ export async function createMarkdownFile(
   }
   if (settings.addParagraphNumbers) {
     markdown = addParagraphNumbersToMarkdown(markdown);
+  }
+
+  // Split into multiple files if the document exceeds the word threshold
+  if (settings.splitLargeFiles) {
+    const wordCount = markdown.trim().split(/\s+/).filter((s) => s.length > 0).length;
+    if (wordCount > WORD_SPLIT_THRESHOLD) {
+      const chunks = splitMarkdownIntoChunks(markdown, WORD_SPLIT_THRESHOLD);
+      for (let i = 0; i < chunks.length; i++) {
+        const partName = i === 0 ? fileName : `${baseName}-part-${i + 1}.md`;
+        const partPath = folderPath + partName;
+        const existing = app.vault.getAbstractFileByPath(partPath);
+        let partFile: TFile;
+        if (existing instanceof TFile) {
+          partFile = existing;
+          await app.vault.modify(partFile, chunks[i]);
+        } else {
+          partFile = await app.vault.create(partPath, chunks[i]);
+        }
+        new Notice(`Markdown file created: ${partName}`);
+        if (i === 0) app.workspace.openLinkText(partFile.path, '', true);
+      }
+      return;
+    }
   }
 
   const existingFile = app.vault.getAbstractFileByPath(filePath);
@@ -188,6 +214,31 @@ export async function addMetadataToMarkdownFile(
         console.error('Error adding metadata to markdown file:', error);
       });
   }
+}
+
+function splitMarkdownIntoChunks(markdown: string, maxWords: number): string[] {
+  const blocks = markdown.split(/\n\n/);
+  const chunks: string[] = [];
+  let currentBlocks: string[] = [];
+  let currentWordCount = 0;
+
+  for (const block of blocks) {
+    const blockWords = block.trim().split(/\s+/).filter((s) => s.length > 0).length;
+    if (currentWordCount + blockWords > maxWords && currentBlocks.length > 0) {
+      chunks.push(currentBlocks.join('\n\n'));
+      currentBlocks = [block];
+      currentWordCount = blockWords;
+    } else {
+      currentBlocks.push(block);
+      currentWordCount += blockWords;
+    }
+  }
+
+  if (currentBlocks.length > 0) {
+    chunks.push(currentBlocks.join('\n\n'));
+  }
+
+  return chunks;
 }
 
 function addPageNumbersToMarkdown(markdown: string, startPage: number): string {

@@ -28,8 +28,9 @@ export interface MarkerSettings {
   imageMinSize?: number; // Minimum height and width of images to extract
   // Post-processing options
   addPageNumbers?: boolean;
-  pageNumberStart?: number;
+  pageNumberStart?: number; // set at runtime via modal, not persisted in UI
   addParagraphNumbers?: boolean;
+  splitLargeFiles?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -58,6 +59,7 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   addPageNumbers: false,
   pageNumberStart: 1,
   addParagraphNumbers: false,
+  splitLargeFiles: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -192,25 +194,10 @@ export class MarkerSettingTab extends PluginSettingTab {
     // Add a heading for post-processing settings
     containerEl.createEl('h3', { text: 'Post-Processing' });
 
-    // Page number start input — declared before addPageNumbers toggle so its closure can reference it
-    const pageNumberStartSetting = new Setting(containerEl)
-      .setName('Page number start')
-      .setDesc('The page number of the first page in the PDF')
-      .addText((text) =>
-        text
-          .setPlaceholder('1')
-          .setValue(String(this.plugin.settings.pageNumberStart ?? 1))
-          .onChange(async (value) => {
-            const num = parseInt(value);
-            this.plugin.settings.pageNumberStart = isNaN(num) ? 1 : num;
-            await this.plugin.saveSettings();
-          })
-      );
-
     new Setting(containerEl)
       .setName('Add page numbers')
       .setDesc(
-        "Insert an italic page label (e.g. *Page 1*) above each page-break separator (---). Requires 'Paginate output' to be enabled in Converter Settings."
+        "Insert an italic page label (e.g. *Page 1*) above each page-break separator (---). You will be prompted for the starting page number each time you convert. Requires 'Paginate output' to be enabled in Converter Settings."
       )
       .addToggle((toggle) =>
         toggle
@@ -218,7 +205,6 @@ export class MarkerSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.addPageNumbers = value;
             await this.plugin.saveSettings();
-            updatePageNumberStartSetting(value);
           })
       );
 
@@ -232,6 +218,20 @@ export class MarkerSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.addParagraphNumbers ?? false)
           .onChange(async (value) => {
             this.plugin.settings.addParagraphNumbers = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Split large files')
+      .setDesc(
+        'If the converted markdown exceeds 20,000 words, split it into multiple files (filename.md, filename-part-2.md, …). Paragraph and page numbers continue across parts.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.splitLargeFiles ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.splitLargeFiles = value;
             await this.plugin.saveSettings();
           })
       );
@@ -252,14 +252,8 @@ export class MarkerSettingTab extends PluginSettingTab {
       writeMetadataToggle.settingEl.toggle(canWriteMetadata);
     };
 
-    // Helper function to show/hide the page number start input
-    const updatePageNumberStartSetting = (enabled: boolean) => {
-      pageNumberStartSetting.settingEl.toggle(enabled);
-    };
-
     // Initialize settings state
     updateMovePDFSetting(this.plugin.settings.createFolder);
     updateWriteMetadataSetting(this.plugin.settings.extractContent);
-    updatePageNumberStartSetting(this.plugin.settings.addPageNumbers ?? false);
   }
 }

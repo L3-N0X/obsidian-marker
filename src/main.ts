@@ -5,6 +5,7 @@ import { DatalabConverter } from './converters/datalabConverter';
 import { MarkerApiDockerConverter } from './converters/markerApiDocker';
 import { PythonAPIConverter } from './converters/markerPythonApi';
 import { MistralAIConverter } from './converters/mistralaiConverter';
+import { MarkerNumberInputDialog } from './modals';
 
 export default class Marker extends Plugin {
   settings: MarkerSettings;
@@ -95,11 +96,27 @@ export default class Marker extends Plugin {
   }
 
   private async convertFile(file: TFile) {
-    if (this.converter) {
-      await this.converter.convert(this.app, this.settings, file);
-    } else {
+    if (!this.converter) {
       console.error('No converter initialized.');
+      return;
     }
+
+    // If page numbering is on, ask for the starting page before sending to the API
+    if (this.settings.addPageNumbers) {
+      const pageStart = await new Promise<number | null>((resolve) => {
+        new MarkerNumberInputDialog(
+          this.app,
+          'Starting page number',
+          `What is the page number of the first page in "${file.name}"?`,
+          1,
+          resolve
+        ).open();
+      });
+      if (pageStart === null) return; // user cancelled
+      this.settings.pageNumberStart = pageStart;
+    }
+
+    await this.converter.convert(this.app, this.settings, file);
   }
 
   private addCommands() {
