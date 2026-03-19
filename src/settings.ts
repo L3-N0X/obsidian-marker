@@ -26,6 +26,11 @@ export interface MarkerSettings {
   // MistralAI parameters
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
+  // Post-processing options
+  addPageNumbers?: boolean;
+  pageNumberStart?: number; // set at runtime via modal, not persisted in UI
+  addParagraphNumbers?: boolean;
+  splitLargeFiles?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -51,6 +56,10 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   skipCache: false,
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
+  addPageNumbers: false,
+  pageNumberStart: 1,
+  addParagraphNumbers: false,
+  splitLargeFiles: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -178,6 +187,51 @@ export class MarkerSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.deleteOriginal)
           .onChange(async (value) => {
             this.plugin.settings.deleteOriginal = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // Add a heading for post-processing settings
+    containerEl.createEl('h3', { text: 'Post-Processing' });
+
+    new Setting(containerEl)
+      .setName('Add page numbers')
+      .setDesc(
+        "Insert an italic page label (e.g. *Page 1*) above each page-break separator (---). You will be prompted for the starting page number each time you convert. Requires 'Paginate output' to be enabled in Converter Settings."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.addPageNumbers ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.addPageNumbers = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Add paragraph numbers')
+      .setDesc(
+        'Prefix each prose paragraph with [¶N] to aid citation and verification. Skips headings, code blocks, tables, lists, images, and page separators.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.addParagraphNumbers ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.addParagraphNumbers = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Split large files')
+      .setDesc(
+        'If the converted markdown exceeds 20,000 words, split it into multiple files (filename.md, filename-part-2.md, …). Paragraph and page numbers continue across parts.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.splitLargeFiles ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.splitLargeFiles = value;
             await this.plugin.saveSettings();
           })
       );

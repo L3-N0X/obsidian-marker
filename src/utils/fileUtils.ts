@@ -122,6 +122,8 @@ export async function createImageFiles(
   }
 }
 
+const WORD_SPLIT_THRESHOLD = 20000;
+
 export async function createMarkdownFile(
   app: App,
   settings: MarkerSettings,
@@ -129,7 +131,8 @@ export async function createMarkdownFile(
   folderPath: string,
   originalFile: TFile
 ) {
-  const fileName = originalFile.name.split('.')[0] + '.md';
+  const baseName = originalFile.name.split('.')[0];
+  const fileName = baseName + '.md';
   const filePath = folderPath + fileName;
   let file: TFile;
 
@@ -147,6 +150,37 @@ export async function createMarkdownFile(
   // remove images when only text is extracted
   if (settings.extractContent === 'text') {
     markdown = markdown.replace(/!\[.*\]\(.*\)/g, '');
+  }
+
+  // Page numbers must run before paragraph numbers so *Page N* labels are not themselves numbered
+  if (settings.addPageNumbers) {
+    markdown = addPageNumbersToMarkdown(markdown, settings.pageNumberStart ?? 1);
+  }
+  if (settings.addParagraphNumbers) {
+    markdown = addParagraphNumbersToMarkdown(markdown);
+  }
+
+  // Split into multiple files if the document exceeds the word threshold
+  if (settings.splitLargeFiles) {
+    const wordCount = markdown.trim().split(/\s+/).filter((s) => s.length > 0).length;
+    if (wordCount > WORD_SPLIT_THRESHOLD) {
+      const chunks = splitMarkdownIntoChunks(markdown, WORD_SPLIT_THRESHOLD);
+      for (let i = 0; i < chunks.length; i++) {
+        const partName = i === 0 ? fileName : `${baseName}-part-${i + 1}.md`;
+        const partPath = folderPath + partName;
+        const existing = app.vault.getAbstractFileByPath(partPath);
+        let partFile: TFile;
+        if (existing instanceof TFile) {
+          partFile = existing;
+          await app.vault.modify(partFile, chunks[i]);
+        } else {
+          partFile = await app.vault.create(partPath, chunks[i]);
+        }
+        new Notice(`Markdown file created: ${partName}`);
+        if (i === 0) app.workspace.openLinkText(partFile.path, '', true);
+      }
+      return;
+    }
   }
 
   const existingFile = app.vault.getAbstractFileByPath(filePath);
@@ -180,6 +214,90 @@ export async function addMetadataToMarkdownFile(
         console.error('Error adding metadata to markdown file:', error);
       });
   }
+}
+
+function splitMarkdownIntoChunks(markdown: string, maxWords: number): string[] {
+  const blocks = markdown.split(/\n\n/);
+  const chunks: string[] = [];
+  let currentBlocks: string[] = [];
+  let currentWordCount = 0;
+
+  for (const block of blocks) {
+    const blockWords = block.trim().split(/\s+/).filter((s) => s.length > 0).length;
+    if (currentWordCount + blockWords > maxWords && currentBlocks.length > 0) {
+      chunks.push(currentBlocks.join('\n\n'));
+      currentBlocks = [block];
+      currentWordCount = blockWords;
+    } else {
+      currentBlocks.push(block);
+      currentWordCount += blockWords;
+    }
+  }
+
+  if (currentBlocks.length > 0) {
+    chunks.push(currentBlocks.join('\n\n'));
+  }
+
+  return chunks;
+}
+
+function addPageNumbersToMarkdown(markdown: string, startPage: number): string {
+  let pageNumber = startPage;
+  return markdown.replace(/\n\n---\n\n/g, () => {
+    const label = `\n\n*Page ${pageNumber}*\n\n---\n\n`;
+    pageNumber++;
+    return label;
+  });
+}
+
+function addParagraphNumbersToMarkdown(markdown: string): string {
+  // Extract YAML frontmatter so it is never numbered
+  let frontmatter = '';
+  let body = markdown;
+  const frontmatterMatch = markdown.match(/^---\n[\s\S]*?\n---\n/);
+  if (frontmatterMatch) {
+    frontmatter = frontmatterMatch[0];
+    body = markdown.slice(frontmatter.length);
+  }
+
+  const blocks = body.split(/\n\n/);
+
+  const isNonProse = (block: string): boolean => {
+    const t = block.trimStart();
+    if (t === '') return true;
+    if (/^#{1,6}\s/.test(t)) return true;    // headings
+    if (/^---+\s*$/.test(t)) return true;    // horizontal rules / page separators
+    if (/^```/.test(t)) return true;          // fenced code blocks
+    if (/^\|/.test(t)) return true;           // tables
+    if (/^>/.test(t)) return true;            // blockquotes
+    if (/^\s*[-*+]\s/.test(t)) return true;   // unordered lists
+    if (/^\s*\d+\.\s/.test(t)) return true;   // ordered lists
+    if (/^!\[/.test(t)) return true;          // images
+    if (/^\*Page \d+\*/.test(t)) return true; // page labels inserted by addPageNumbersToMarkdown
+    return false;
+  };
+
+  // Track whether we are inside a fenced code block across blank-line-split fragments
+  let insideCodeFence = false;
+  let paragraphNumber = 1;
+
+  const numberedBlocks = blocks.map((block) => {
+    const fenceCount = (block.match(/^```/gm) || []).length;
+    const startsWithFence = /^```/.test(block.trimStart());
+
+    if (insideCodeFence) {
+      if (fenceCount % 2 === 1) insideCodeFence = false;
+      return block;
+    }
+    if (startsWithFence) {
+      if (fenceCount % 2 === 1) insideCodeFence = true;
+      return block;
+    }
+    if (isNonProse(block)) return block;
+    return `[¶${paragraphNumber++}] ${block.trimStart()}`;
+  });
+
+  return frontmatter + numberedBlocks.join('\n\n');
 }
 
 function generateFrontmatter(metadata: { [key: string]: any }): string {
