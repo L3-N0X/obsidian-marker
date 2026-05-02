@@ -26,6 +26,7 @@ export interface MarkerSettings {
   // MistralAI parameters
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
+  deleteFileFromMistralaiAfterConversion?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   skipCache: false,
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
+  deleteFileFromMistralaiAfterConversion: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {

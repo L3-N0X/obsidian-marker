@@ -31,10 +31,10 @@ export class MistralAIConverter extends BaseConverter {
 
     new Notice('Converting file with MistralAI OCR...', 4000);
 
-    try {
-      // Initialize MistralAI client
-      const client = new Mistral({ apiKey: settings.mistralaiApiKey });
+    const client = new Mistral({ apiKey: settings.mistralaiApiKey });
+    let uploadedFileId: string | undefined;
 
+    try {
       // Read the file content
       const fileContent = await app.vault.readBinary(file);
 
@@ -53,8 +53,10 @@ export class MistralAIConverter extends BaseConverter {
         return false;
       }
 
+      uploadedFileId = fileUpload.id;
+
       const signedUrl = await client.files.getSignedUrl({
-        fileId: fileUpload.id,
+        fileId: uploadedFileId,
       });
 
       // Set includeImageBase64 based on the extractContent setting
@@ -113,6 +115,35 @@ export class MistralAIConverter extends BaseConverter {
         }`
       );
       return false;
+    } finally {
+      if (
+        settings.deleteFileFromMistralaiAfterConversion &&
+        uploadedFileId
+      ) {
+        try {
+          const deleteResult = await client.files.delete({
+            fileId: uploadedFileId,
+          });
+
+          if (!deleteResult?.deleted) {
+            console.warn(
+              `MistralAI file deletion returned non-deleted status for file ${uploadedFileId}`,
+              deleteResult
+            );
+            new Notice(
+              'Warning: Uploaded MistralAI file may not have been deleted.'
+            );
+          }
+        } catch (cleanupError) {
+          console.error(
+            `Failed to delete uploaded MistralAI file ${uploadedFileId}:`,
+            cleanupError
+          );
+          new Notice(
+            'Warning: Failed to delete uploaded file from MistralAI after conversion.'
+          );
+        }
+      }
     }
   }
 
@@ -224,6 +255,14 @@ export class MistralAIConverter extends BaseConverter {
         buttonAction: async (app, settings) => {
           await this.testConnection(settings, false);
         },
+      },
+      {
+        id: 'deleteFileFromMistralaiAfterConversion',
+        name: 'Delete file from mistralai after conversion',
+        description:
+          'Delete uploaded files from the MistralAI API after each conversion.',
+        type: 'toggle',
+        defaultValue: false,
       },
       {
         id: 'imageLimit',
