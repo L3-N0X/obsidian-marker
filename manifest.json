@@ -1,7 +1,7 @@
 {
 	"id": "marker-api",
 	"name": "OCR-AI",
-	"version": "1.4.7",
+	"version": "1.4.8",
 	"minAppVersion": "0.15.0",
 	"description": "Convert PDFs to beautiful rich Markdown notes with tables, images, formulas and OCR. Works with self-hosted Marker API and free Mistral OCR API!",
 	"author": "L3N0X",
