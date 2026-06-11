@@ -30,7 +30,7 @@ interface PythonApiErrorResponse {
   detail: PythonApiErrorDetail[];
 }
 
-export class PythonAPIConverter extends BaseConverter {
+export class PythonLocalAPIConverter extends BaseConverter {
   async convert(
     app: App,
     settings: MarkerSettings,

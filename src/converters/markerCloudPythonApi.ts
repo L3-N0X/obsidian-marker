@@ -31,7 +31,7 @@ interface PythonApiErrorResponse {
   detail: PythonApiErrorDetail[];
 }
 
-export class PythonAPIConverter extends BaseConverter {
+export class PythonCloudAPIConverter extends BaseConverter {
   async convert(
     app: App,
     settings: MarkerSettings,
