@@ -50,7 +50,7 @@ When you want to support the development, consider buying me a coffee:
 To use this plugin, you'll need:
 
 1. A working Obsidian installation
-2. Access to a Marker API endpoint (self-hosted or paid service or python api) OR a free MistralAI API key
+2. Access to a Marker API endpoint (self-hosted, paid service, or Python API server) OR a free MistralAI API key
 
 ## 🔧 Setup
 
@@ -59,7 +59,8 @@ To use this plugin, you'll need:
    - **MistralAI**: Get a free API key from [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys)
    - **Datalab.to**: Sign up for a paid account
    - **Self-hosted Marker API**: Set up Docker on a machine with a solid GPU/CPU
-   - **Python API**: Run the Python server when needed
+   - **Python Local API**: Run the Python server on the same local machine where Obsidian is running. It passes the absolute local file path to the API.
+   - **Python Cloud API**: Run the Python server on a remote server, a separate machine, or in WSL. It uploads the file contents using multipart form data, which is necessary since the API server cannot access the local files directly.
 3. Configure your chosen endpoint/API key in the plugin settings
 
 ### Which solution should I use?
@@ -70,7 +71,8 @@ To use this plugin, you'll need:
 | **MistralAI (recommended)** | Completely free, excellent results in testing, easy setup with just an API key | Uploads your files to Mistral's servers (stored for at least 24h) |
 | **Hosted on datalab.to** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                             |
 | **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | Requires a powerful machine, Setup can be complex for beginners |
-| **Self-Hosted via Python**             | Easy to set up, no Docker required                                                                  | Not all features available                                      |
+| **Self-Hosted via Python (Local)**     | Easy to set up, no Docker required, runs locally on the same host                                   | Not all features available; requires API server to run on the same machine as Obsidian to access file paths |
+| **Self-Hosted via Python (Remote/WSL)**  | Easy to set up, no Docker required, works with WSL or remote servers by uploading file content     | Not all features available; requires uploading files over network or host-WSL boundary |
 
 > [!NOTE]
 > **MistralAI Privacy Consideration**: When using the MistralAI endpoint, your PDFs will be uploaded to Mistral's servers for processing. These files are stored for at least 24 hours. If you have sensitive documents, consider using a self-hosted solution instead.
@@ -91,9 +93,9 @@ You can convert PDFs to Markdown in multiple ways:
 
 | Setting                     | Default          | Description                                                                                                                                                |
 | ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python API', or 'MistralAI'                                                      |
+| **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python Local API', 'Python Cloud API', or 'MistralAI'                                                      |
 | **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.  |
-| **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python API' is selected as the API endpoint.                                                   |
+| **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python Local API' or 'Python Cloud API' is selected as the API endpoint.                            |
 | **Datalab API Key**          | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                           |
 | **MistralAI API Key**       | -                | Enter your MistralAI API key. Only shown when 'MistralAI' is selected as the API endpoint.                                                     |
 | **Languages**               | 'en'             | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
