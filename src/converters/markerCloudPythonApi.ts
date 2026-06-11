@@ -10,6 +10,7 @@ import { MarkerSettings } from './../settings';
 import { BaseConverter, ConversionResult } from './../converter';
 import { deleteOriginalFile } from '../utils/fileUtils';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
+import {FormField, MarkerMultipartRequest} from "../utils/multipartUtils";
 
 // Define interfaces for Python API responses
 interface PythonApiSuccessResponse {
@@ -30,7 +31,7 @@ interface PythonApiErrorResponse {
   detail: PythonApiErrorDetail[];
 }
 
-export class PythonAPIConverter extends BaseConverter {
+export class PythonCloudAPIConverter extends BaseConverter {
   async convert(
     app: App,
     settings: MarkerSettings,
@@ -42,54 +43,64 @@ export class PythonAPIConverter extends BaseConverter {
     new Notice('Converting file with Python API...', 10000);
 
     try {
-      const adapter = app.vault.adapter;
-      let realFilePath = file.path;
-      if (adapter instanceof FileSystemAdapter) {
-        realFilePath = adapter.getFullPath(file.path);
-      } else {
-        console.warn(
-          'Not using FileSystemAdapter - path may not be correctly resolved'
+      let fileContent: ArrayBuffer;
+
+      try {
+        fileContent = await app.vault.readBinary(file);
+      } catch (readError) {
+        console.error(
+          `Failed to read file content: ${readError.message}`,
+          readError
         );
+
+        new Notice(
+          `Error reading file: ${readError.message || 'Access denied'}`
+        );
+
+        return false;
       }
 
+      const multipart = await this.createMultipartFormData(
+        file,
+        fileContent,
+        settings
+      );
+
       const requestParams: RequestUrlParam = {
-        url: `http://${settings.pythonEndpoint}/marker`,
+        url: `http://${settings.pythonEndpoint}/marker/upload`,
         method: 'POST',
         throw: false,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': `multipart/form-data; boundary=${multipart.boundary}`,
         },
-        body: JSON.stringify({
-          filepath: realFilePath,
-          page_range: '', // or parse from user if needed
-          languages: settings.langs ?? 'en',
-          force_ocr: settings.forceOCR ?? false,
-          paginate_output: settings.paginate ?? false,
-          output_format: 'markdown',
-        }),
+        body: multipart.body,
       };
 
       const response = await requestUrl(requestParams);
 
       if (response.status !== 200) {
         try {
-          // Try to parse as error response
-          const errorData = JSON.parse(response.text) as PythonApiErrorResponse;
+          const errorData = JSON.parse(
+            response.text
+          ) as PythonApiErrorResponse;
+
           let errorMsg = `HTTP ${response.status}`;
 
-          // Extract detailed error message if available
-          if (errorData.detail && errorData.detail.length > 0) {
-            errorMsg = errorData.detail.map((err) => err.msg).join('; ');
+          if (errorData.detail?.length) {
+            errorMsg = errorData.detail
+              .map((err) => err.msg)
+              .join('; ');
           }
 
           console.error('Python API error response:', errorData);
           new Notice(`Python API conversion failed: ${errorMsg}`);
           return false;
-        } catch (parseErr) {
+        } catch {
           console.error(
             `Python API error: HTTP ${response.status}`,
             response.text
           );
+
           new Notice(
             `Python API conversion failed: HTTP ${response.status} - ${
               response.text
@@ -97,72 +108,110 @@ export class PythonAPIConverter extends BaseConverter {
                 : 'No response details'
             }`
           );
+
           return false;
         }
       }
 
-      try {
-        const responseData = JSON.parse(
-          response.text
-        ) as PythonApiSuccessResponse;
+      const responseData = JSON.parse(
+        response.text
+      ) as PythonApiSuccessResponse;
 
-        // Format the response into a valid ConversionResult
-        const conversionResult: ConversionResult = {
-          success: responseData.success || false,
-          markdown: responseData.output || '',
-          images: responseData.images || {},
-          metadata: responseData.metadata || {},
-        };
+      const conversionResult: ConversionResult = {
+        success: responseData.success || false,
+        markdown: responseData.output || '',
+        images: responseData.images || {},
+        metadata: responseData.metadata || {},
+      };
 
-        if (!conversionResult.success) {
-          conversionResult.error = 'Unknown conversion error';
-          console.error(
-            `Python API conversion failed: ${conversionResult.error}`,
-            responseData
-          );
-          new Notice(`Python API conversion failed: ${conversionResult.error}`);
-          return false;
-        }
+      if (!conversionResult.success) {
+        conversionResult.error = 'Unknown conversion error';
 
-        await this.processConversionResult(
-          app,
-          settings,
-          conversionResult,
-          folderPath,
-          file
-        );
-        new Notice('Conversion with Python API completed');
-
-        if (settings.movePDFtoFolder) {
-          const newFilePath = folderPath + file.name;
-          await app.vault.rename(file, newFilePath);
-        }
-        if (settings.deleteOriginal) {
-          await deleteOriginalFile(app, file);
-        }
-        return true;
-      } catch (parseError) {
         console.error(
-          'Error parsing Python API response:',
-          parseError,
-          'Response text:',
-          response.text.substring(0, 500) +
-            (response.text.length > 500 ? '...' : '')
+          `Python API conversion failed: ${conversionResult.error}`,
+          responseData
         );
+
         new Notice(
-          'Error parsing Python API response. Check console for details.'
+          `Python API conversion failed: ${conversionResult.error}`
         );
+
         return false;
       }
+
+      await this.processConversionResult(
+        app,
+        settings,
+        conversionResult,
+        folderPath,
+        file
+      );
+
+      new Notice('Conversion with Python API completed');
+
+      if (settings.movePDFtoFolder) {
+        const newFilePath = folderPath + file.name;
+        await app.vault.rename(file, newFilePath);
+      }
+
+      if (settings.deleteOriginal) {
+        await deleteOriginalFile(app, file);
+      }
+
+      return true;
     } catch (error) {
-      console.error('Python API conversion error:', error.message, error.stack);
+      console.error(
+        'Python API conversion error:',
+        error.message,
+        error.stack
+      );
+
       new Notice(
         `Python API conversion failed: ${
           error.message || 'Network or server error'
         }`
       );
+
       return false;
     }
+  }
+
+  /**
+   * Creates multipart form data for the API request
+   */
+  private async createMultipartFormData(
+    file: TFile,
+    fileContent: ArrayBuffer,
+    settings: MarkerSettings
+  ): Promise<{ body: ArrayBuffer; boundary: string }> {
+    const boundary =
+      '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+
+    const fields: FormField[] = [
+      {
+        name: 'page_range',
+        value: '',
+      },
+      {
+        name: 'force_ocr',
+        value: settings.forceOCR ?? false,
+      },
+      {
+        name: 'paginate_output',
+        value: settings.paginate ?? false,
+      },
+      {
+        name: 'output_format',
+        value: 'markdown',
+      },
+    ];
+
+    return MarkerMultipartRequest.build(
+      boundary,
+      file,
+      fileContent,
+      fields
+    );
   }
 
   async testConnection(

@@ -3,7 +3,8 @@ import { MarkerSettings, DEFAULT_SETTINGS, MarkerSettingTab } from './settings';
 import { Converter } from './converter';
 import { DatalabConverter } from './converters/datalabConverter';
 import { MarkerApiDockerConverter } from './converters/markerApiDocker';
-import { PythonAPIConverter } from './converters/markerPythonApi';
+import { PythonLocalAPIConverter } from "./converters/markerLocalPythonApi";
+import { PythonCloudAPIConverter } from './converters/markerCloudPythonApi';
 import { MistralAIConverter } from './converters/mistralaiConverter';
 
 export default class Marker extends Plugin {
@@ -26,8 +27,11 @@ export default class Marker extends Plugin {
       case 'selfhosted':
         this.converter = new MarkerApiDockerConverter();
         break;
-      case 'python-api':
-        this.converter = new PythonAPIConverter();
+      case 'python-local-api':
+        this.converter = new PythonLocalAPIConverter();
+        break;
+      case 'python-cloud-api':
+        this.converter = new PythonCloudAPIConverter();
         break;
       case 'mistralai':
         this.converter = new MistralAIConverter();

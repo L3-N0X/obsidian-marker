@@ -3,6 +3,7 @@ import { MarkerSettings } from './../settings';
 import { BaseConverter, ConversionResult } from './../converter';
 import { checkForExistingFiles } from '../utils/fileUtils';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
+import {MarkerMultipartRequest} from "../utils/multipartUtils";
 
 // Define interfaces for Docker API responses based on OpenAPI spec
 interface GeneralMetadata {
@@ -230,24 +231,12 @@ export class MarkerApiDockerConverter extends BaseConverter {
     parts.push(`--${boundary}--\r\n`);
 
     // Combine all parts into a single ArrayBuffer
-    const bodyParts = parts.map((part) =>
-      typeof part === 'string' ? new TextEncoder().encode(part) : part
-    );
-    const bodyLength = bodyParts.reduce(
-      (acc, part) => acc + part.byteLength,
-      0
-    );
-    const body = new Uint8Array(bodyLength);
-    let offset = 0;
-    for (const part of bodyParts) {
-      body.set(part, offset);
-      offset += part.byteLength;
-    }
+    const bodyParts = MarkerMultipartRequest.combinePartsToArrayBuffer(parts);
 
     const requestParams: RequestUrlParam = {
       url: `http://${settings.markerEndpoint}/convert`,
       method: 'POST',
-      body: body.buffer,
+      body: bodyParts,
       headers: {
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
