@@ -125,6 +125,10 @@ export default class Marker extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (this.settings.apiEndpoint === 'python-api') {
+      this.settings.apiEndpoint = 'python-local-api';
+      await this.saveData(this.settings);
+    }
   }
 
   async saveSettings() {
