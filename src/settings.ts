@@ -74,7 +74,8 @@ export class MarkerSettingTab extends PluginSettingTab {
         dropdown
           .addOption('datalab', 'Datalab')
           .addOption('selfhosted', 'Selfhosted')
-          .addOption('python-api', 'Python API')
+          .addOption('python-local-api', 'Python API')
+          .addOption('python-cloud-api', 'Python API')
           .addOption('mistralai', 'MistralAI')
           .setValue(this.plugin.settings.apiEndpoint)
           .onChange(async (value) => {
