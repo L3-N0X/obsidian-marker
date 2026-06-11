@@ -147,7 +147,7 @@ export class PythonAPIConverter extends BaseConverter {
           parseError,
           'Response text:',
           response.text.substring(0, 500) +
-            (response.text.length > 500 ? '...' : '')
+          (response.text.length > 500 ? '...' : '')
         );
         new Notice(
           'Error parsing Python API response. Check console for details.'
