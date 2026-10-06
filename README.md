@@ -7,10 +7,10 @@
 
 ## 🌟 Introduction
 
-Welcome to this Obsidian PDF to Markdown Converter! This plugin brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of Marker through a self-hosted API, the hosted solution on [datalab.to](https://www.datalab.to/), or the powerful MistralAI OCR capabilities, this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files, with support for tables, formulas and more!
+Welcome to this Obsidian PDF to Markdown Converter! This plugin brings the power of advanced PDF conversion directly into your Obsidian vault. By leveraging the capabilities of Marker through a self-hosted API, the hosted solution on [datalab.to](https://www.datalab.to/), the powerful MistralAI OCR capabilities, the Mathpix document API, or any OpenAI compatible vision model (OpenAI, OpenRouter, Ollama, LM Studio, ...), this plugin offers a seamless way to transform your PDFs into rich, formatted Markdown files, with support for tables, formulas and more!
 
 > [!IMPORTANT]
-> This plugin requires a Marker API endpoint, a paid account for datalab, the python api of marker, or a free MistralAI API key to work. Without an endpoint, the application can't convert anything.
+> This plugin requires a Marker API endpoint, a paid account for datalab, the python api of marker, a MistralAI API key, a Mathpix API key, or an OpenAI compatible API (which can also be a local model) to work. Without an endpoint, the application can't convert anything.
 
 You can find the related repositories and services here:
 
@@ -18,7 +18,9 @@ You can find the related repositories and services here:
 - [datalab.to](https://www.datalab.to/) (Hosted API for the Marker AI model, provided by the developer himself)
 - [Marker API Docker Container](https://hub.docker.com/r/wirawan/marker-api) (Container for self-hosting, needs Nvidia GPU)
 - [Marker API](https://github.com/adithya-s-k/marker-api) (API for self-hosting the conversion service)
-- [MistralAI](https://console.mistral.ai/) (Free OCR API with excellent results)
+- [MistralAI](https://console.mistral.ai/) (OCR API with excellent results, billed per page)
+- [Mathpix](https://mathpix.com/ocr) (OCR API specialized in math and science, also converts DOCX, PPTX, EPUB and other formats)
+- Any OpenAI compatible API, e.g. [OpenAI](https://platform.openai.com/), [OpenRouter](https://openrouter.ai/), [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) (uses a vision model with an editable prompt)
 
 ## 🚀 Features
 
@@ -50,13 +52,15 @@ When you want to support the development, consider buying me a coffee:
 To use this plugin, you'll need:
 
 1. A working Obsidian installation
-2. Access to a Marker API endpoint (self-hosted, paid service, or Python API server) OR a free MistralAI API key
+2. Access to a Marker API endpoint (self-hosted, paid service, or Python API server), a MistralAI API key, a Mathpix API key, OR an OpenAI compatible API with a vision model
 
 ## 🔧 Setup
 
 1. Install the plugin in your Obsidian vault
 2. Choose your conversion method:
-   - **MistralAI**: Get a free API key from [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys)
+   - **MistralAI**: Get an API key from [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys)
+   - **Mathpix**: Create an app ID and app key in the [Mathpix console](https://console.mathpix.com/)
+   - **OpenAI compatible**: Enter the base URL, API key and model of any provider that implements the OpenAI chat completions API. Local servers such as Ollama (`http://localhost:11434/v1`) or LM Studio (`http://localhost:1234/v1`) work without an API key.
    - **Datalab.to**: Sign up for a paid account
    - **Self-hosted Marker API**: Set up Docker on a machine with a solid GPU/CPU
    - **Python Local API**: Run the Python server on the same local machine where Obsidian is running. It passes the absolute local file path to the API.
@@ -68,7 +72,9 @@ To use this plugin, you'll need:
 
 | Solution                               | Pros                                                                                                | Cons                                                            |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **MistralAI (recommended)** | Completely free, excellent results in testing, easy setup with just an API key | Uploads your files to Mistral's servers (stored for at least 24h) |
+| **MistralAI** | Excellent results in testing, easy setup with just an API key | No longer free beyond the small monthly credit of Mistral's free plan, uploads your files to Mistral's servers (stored for at least 24h) |
+| **Mathpix** | Excellent at math, tables and chemistry, converts PDF, DOCX, PPTX, EPUB and more | Paid per page, uploads your files to Mathpix's servers |
+| **OpenAI compatible** | Works with nearly any provider or a local model, fully customizable prompt, local models keep your files private | Quality depends on the model, can be slow with local models, image extraction is experimental |
 | **Hosted on datalab.to** | No setup required, fast and reliable, supports the developer and is easily accessible from anywhere | Costs a few dollars                                             |
 | **Self-Hosted via Docker**             | Full control over the conversion process, no costs for the API                                      | Requires a powerful machine, Setup can be complex for beginners |
 | **Self-Hosted via Python (Local)**     | Easy to set up, no Docker required, runs locally on the same host                                   | Not all features available; requires API server to run on the same machine as Obsidian to access file paths |
@@ -76,6 +82,9 @@ To use this plugin, you'll need:
 
 > [!NOTE]
 > **MistralAI Privacy Consideration**: When using the MistralAI endpoint, your PDFs will be uploaded to Mistral's servers for processing. These files are stored for at least 24 hours. If you have sensitive documents, consider using a self-hosted solution instead.
+
+> [!NOTE]
+> **Mathpix Privacy Consideration**: When using the Mathpix endpoint, your documents are uploaded to Mathpix's servers. Enable *Delete file from Mathpix after conversion* to remove them and their results right after the conversion.
 
 ### 🧾 Usage
 
@@ -93,7 +102,7 @@ You can convert PDFs to Markdown in multiple ways:
 
 | Setting                     | Default          | Description                                                                                                                                                |
 | ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python Local API', 'Python Cloud API', or 'MistralAI'                                                      |
+| **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python Local API', 'Python Cloud API', 'MistralAI', 'OpenAI compatible' or 'Mathpix'                                          |
 | **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.  |
 | **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python Local API' or 'Python Cloud API' is selected as the API endpoint.                            |
 | **Datalab API Key**          | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                           |
@@ -109,13 +118,56 @@ You can convert PDFs to Markdown in multiple ways:
 | **Write Metadata**          | `false`          | Write metadata as frontmatter in the Markdown file.                                                                                                        |
 | **Delete Original PDF**     | `false`          | Delete the original PDF after conversion.                                                                                                                  |
 
+### OpenAI compatible settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| **Base URL** | `https://api.openai.com/v1` | Base URL of the API, e.g. `https://openrouter.ai/api/v1` or `http://localhost:11434/v1` for Ollama |
+| **API key** | - | Leave empty for local servers that do not need one |
+| **Model** | - | A model that supports image input, e.g. `gpt-4.1-mini` or a local vision model |
+| **Input mode** | Page images | *Page images* renders every page and works with every vision model. *PDF file* sends the PDF directly, which only some providers support |
+| **Pages per request** | `1` | How many pages are sent in one request |
+| **Parallel requests** | `2` | How many requests run at the same time. Use `1` for local models |
+| **Render scale** | `2` | Resolution of the page images (1 = 72 DPI) |
+| **Paginate** | `false` | Add horizontal rules between pages |
+| **Extract images (experimental)** | `false` | Ask the model where figures are and cut them out of the page image. Most models are not precise at this, so it is off by default |
+| **System prompt** | - | Opens the prompt editor (see below) |
+| **Extra request parameters** | - | JSON merged into every request, e.g. `{"temperature": 0, "max_tokens": 8192}` |
+
+#### Editing the system prompt
+
+The prompt sent to the model is built from short base instructions and a list of rules. Click **Edit prompt** to open the editor, where you can:
+
+- turn rules on and off, rename them and edit their bullet points,
+- add your own rules (e.g. "Translate all text to English") and reorder them,
+- limit a rule to conversions *with* or *without* image extraction,
+- preview the full prompt and reset everything to the defaults.
+
+The default rules cover the output format, faithful transcription, headings, **tables**, **math**, **Obsidian formatting** (callouts, highlights, footnotes, task lists), **page splitting** and **figures**. Keep the `<!-- page break -->` marker and the `![description](bbox:x_min,y_min,x_max,y_max)` placeholder format if you edit the page splitting or image extraction rules, since the plugin relies on them.
+
+### Mathpix settings
+
+Besides PDFs, Mathpix also converts `docx`, `doc`, `pptx`, `odt`, `wpd`, `epub`, `azw`, `azw3`, `kfx`, `mobi` and `djvu` files. Obsidian only lists unknown file types in the file explorer when *Files and links → Detect all file extensions* is enabled.
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| **Mathpix app ID** / **app key** | - | Your credentials from the [Mathpix console](https://console.mathpix.com/) |
+| **Output format** | Markdown | *Markdown* is plain Markdown. *Mathpix Markdown* keeps advanced syntax (e.g. LaTeX tables) that Obsidian may not render |
+| **Page ranges** | - | Only convert these pages, e.g. `2,4-6` |
+| **Include equation tags** | `false` | Keep equation numbers as `\tag{}` |
+| **Include hyperlinks** | `false` | Keep hyperlinks from the document as Markdown links |
+| **Paginate** | `false` | Add horizontal rules between pages |
+| **Delete file from Mathpix after conversion** | `false` | Delete the uploaded document and its results from Mathpix |
+
+Images are downloaded from Mathpix and saved in your vault, math uses `$`/`$$` delimiters so Obsidian renders it.
+
 ## 🙏 Acknowledgements
 
 This plugin wouldn't be possible without the incredible work of:
 
 - [Marker Project](https://github.com/VikParuchuri/marker): The AI model powering the conversions
 - [Marker API](https://github.com/adithya-s-k/marker-api): The API that enables self-hosting of the conversion service
-- [MistralAI](https://mistral.ai/): For providing the free OCR capabilities
+- [MistralAI](https://mistral.ai/): For providing the OCR capabilities
 
 A huge thank you to these projects for their contributions to the community!
 

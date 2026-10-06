@@ -6,14 +6,19 @@ import { Converter } from '../converter';
 export interface ConverterSettingDefinition {
   id: string;
   name: string;
-  description: string;
-  type: 'text' | 'toggle' | 'dropdown';
+  description: string | ((settings: MarkerSettings) => string);
+  type: 'text' | 'toggle' | 'dropdown' | 'heading' | 'button';
   defaultValue: any;
   placeholder?: string;
   options?: { value: string; label: string }[];
   onChange?: (value: any, settings: MarkerSettings) => Promise<void> | void;
   buttonText?: string;
-  buttonAction?: (app: App, settings: MarkerSettings) => Promise<void> | void;
+  buttonAction?: (
+    app: App,
+    settings: MarkerSettings,
+    saveSettings: () => Promise<void>,
+    refresh?: () => void
+  ) => Promise<void> | void;
 }
 
 // Function to create a setting based on its definition
@@ -22,13 +27,22 @@ export function createConverterSetting(
   app: App,
   definition: ConverterSettingDefinition,
   settings: MarkerSettings,
-  saveSettings: () => Promise<void>
+  saveSettings: () => Promise<void>,
+  refresh?: () => void
 ): Setting {
+  const description =
+    typeof definition.description === 'function'
+      ? definition.description(settings)
+      : definition.description;
   const setting = new Setting(containerEl)
     .setName(definition.name)
-    .setDesc(definition.description);
+    .setDesc(description);
 
   switch (definition.type) {
+    case 'heading':
+      setting.setHeading();
+      break;
+
     case 'text':
       setting.addText((text) => {
         text
@@ -88,7 +102,7 @@ export function createConverterSetting(
     setting.addButton((button) => {
       button.setButtonText(definition.buttonText || '').onClick(() => {
         if (definition.buttonAction) {
-          definition.buttonAction(app, settings);
+          definition.buttonAction(app, settings, saveSettings, refresh);
         }
       });
     });
@@ -103,7 +117,8 @@ export function renderConverterSettings(
   app: App,
   converter: Converter,
   settings: MarkerSettings,
-  saveSettings: () => Promise<void>
+  saveSettings: () => Promise<void>,
+  refresh?: () => void
 ): void {
   // Get settings definitions from the converter
   const settingDefinitions = converter.getConverterSettings();
@@ -115,7 +130,8 @@ export function renderConverterSettings(
       app,
       definition,
       settings,
-      saveSettings
+      saveSettings,
+      refresh
     );
   });
 }

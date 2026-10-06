@@ -6,6 +6,12 @@ import { MarkerApiDockerConverter } from './converters/markerApiDocker';
 import { PythonLocalAPIConverter } from "./converters/markerLocalPythonApi";
 import { PythonCloudAPIConverter } from './converters/markerCloudPythonApi';
 import { MistralAIConverter } from './converters/mistralaiConverter';
+import { OpenAICompatibleConverter } from './converters/openaiCompatibleConverter';
+import {
+  MathpixConverter,
+  MATHPIX_SUPPORTED_EXTENSIONS,
+} from './converters/mathpixConverter';
+import { getDefaultPromptRules } from './utils/promptUtils';
 
 export default class Marker extends Plugin {
   settings: MarkerSettings;
@@ -35,6 +41,12 @@ export default class Marker extends Plugin {
         break;
       case 'mistralai':
         this.converter = new MistralAIConverter();
+        break;
+      case 'openai':
+        this.converter = new OpenAICompatibleConverter();
+        break;
+      case 'mathpix':
+        this.converter = new MathpixConverter();
         break;
       default:
         console.error('Invalid API endpoint setting.');
@@ -80,22 +92,17 @@ export default class Marker extends Plugin {
   }
 
   private isValidFile(file: TFile): boolean {
-    const allowedExtensions =
-      this.settings.apiEndpoint === 'datalab'
-        ? ['pdf', 'docx', 'pptx', 'ppt', 'doc']
-        : ['pdf'];
-    return allowedExtensions.includes(file.extension);
+    let allowedExtensions = ['pdf'];
+    if (this.settings.apiEndpoint === 'datalab') {
+      allowedExtensions = ['pdf', 'docx', 'pptx', 'ppt', 'doc'];
+    } else if (this.settings.apiEndpoint === 'mathpix') {
+      allowedExtensions = MATHPIX_SUPPORTED_EXTENSIONS;
+    }
+    return allowedExtensions.includes(file.extension.toLowerCase());
   }
 
   private getMenuItemTitle(file: TFile): string {
-    const titles = {
-      pdf: 'Convert PDF to MD',
-      docx: 'Convert DOCX to MD',
-      pptx: 'Convert PPTX to MD',
-      ppt: 'Convert PPT to MD',
-      doc: 'Convert DOC to MD',
-    };
-    return titles[file.extension as keyof typeof titles] || 'Convert to MD';
+    return `Convert ${file.extension.toUpperCase()} to MD`;
   }
 
   private async convertFile(file: TFile) {
@@ -125,6 +132,10 @@ export default class Marker extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    // Copy the rules so edits never mutate the shared defaults
+    this.settings.openaiPromptRules = (
+      this.settings.openaiPromptRules ?? getDefaultPromptRules()
+    ).map((rule) => ({ ...rule }));
     if (this.settings.apiEndpoint === 'python-api') {
       this.settings.apiEndpoint = 'python-local-api';
       await this.saveData(this.settings);

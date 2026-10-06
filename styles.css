@@ -1,8 +1,88 @@
-/*
+/* System prompt editor (OpenAI compatible provider) */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.marker-prompt-modal {
+  width: min(820px, 92vw);
+}
 
-If your plugin does not need CSS, delete this file.
+.marker-prompt-intro {
+  width: 100%;
+  resize: vertical;
+}
 
-*/
+.marker-prompt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-4);
+}
+
+.marker-prompt-actions {
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.marker-prompt-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+
+.marker-prompt-rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+.marker-prompt-rule.is-disabled .marker-prompt-rule-name,
+.marker-prompt-rule.is-disabled .marker-prompt-rule-content,
+.marker-prompt-rule.is-disabled select {
+  opacity: 0.5;
+}
+
+.marker-prompt-rule-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.marker-prompt-rule-name {
+  flex: 1 1 160px;
+  font-weight: var(--font-semibold);
+}
+
+.marker-prompt-rule-content {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.marker-prompt-empty {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.marker-prompt-preview {
+  margin-top: var(--size-4-4);
+}
+
+.marker-prompt-preview summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.marker-prompt-preview pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: var(--font-ui-smaller);
+  padding: var(--size-4-2);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary-alt);
+}

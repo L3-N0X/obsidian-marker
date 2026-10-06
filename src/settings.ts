@@ -1,6 +1,11 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import Marker from './main';
 import { renderConverterSettings } from './utils/converterSettingsUtils';
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  PromptRule,
+  getDefaultPromptRules,
+} from './utils/promptUtils';
 
 export interface MarkerSettings {
   markerEndpoint: string;
@@ -27,6 +32,26 @@ export interface MarkerSettings {
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
   deleteFileFromMistralaiAfterConversion?: boolean;
+  // OpenAI compatible API parameters
+  openaiBaseUrl?: string;
+  openaiApiKey?: string;
+  openaiModel?: string;
+  openaiInputMode?: string; // 'images' renders pages, 'pdf' sends the file
+  openaiPagesPerRequest?: number;
+  openaiConcurrency?: number;
+  openaiRenderScale?: number;
+  openaiExtractImages?: boolean;
+  openaiExtraParams?: string; // JSON merged into the request body
+  openaiSystemPrompt?: string;
+  openaiPromptRules?: PromptRule[];
+  // Mathpix parameters
+  mathpixAppId?: string;
+  mathpixAppKey?: string;
+  mathpixOutputFormat?: string; // 'md' plain markdown, 'mmd' Mathpix Markdown
+  mathpixPageRanges?: string;
+  mathpixIncludeEquationTags?: boolean;
+  mathpixIncludeHyperlinks?: boolean;
+  mathpixDeleteAfterConversion?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
@@ -53,6 +78,24 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
   deleteFileFromMistralaiAfterConversion: false,
+  openaiBaseUrl: 'https://api.openai.com/v1',
+  openaiApiKey: '',
+  openaiModel: '',
+  openaiInputMode: 'images',
+  openaiPagesPerRequest: 1,
+  openaiConcurrency: 2,
+  openaiRenderScale: 2,
+  openaiExtractImages: false,
+  openaiExtraParams: '',
+  openaiSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+  openaiPromptRules: getDefaultPromptRules(),
+  mathpixAppId: '',
+  mathpixAppKey: '',
+  mathpixOutputFormat: 'md',
+  mathpixPageRanges: '',
+  mathpixIncludeEquationTags: false,
+  mathpixIncludeHyperlinks: false,
+  mathpixDeleteAfterConversion: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -77,6 +120,8 @@ export class MarkerSettingTab extends PluginSettingTab {
           .addOption('python-local-api', 'Python Local API')
           .addOption('python-cloud-api', 'Python Cloud API')
           .addOption('mistralai', 'MistralAI')
+          .addOption('openai', 'OpenAI compatible')
+          .addOption('mathpix', 'Mathpix')
           .setValue(this.plugin.settings.apiEndpoint)
           .onChange(async (value) => {
             this.plugin.settings.apiEndpoint = value;
@@ -95,7 +140,8 @@ export class MarkerSettingTab extends PluginSettingTab {
         this.app,
         this.plugin.converter,
         this.plugin.settings,
-        async () => await this.plugin.saveSettings()
+        async () => await this.plugin.saveSettings(),
+        () => this.display()
       );
     }
 
