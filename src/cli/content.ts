@@ -93,7 +93,8 @@ export function prepareArtifacts(
     folderPath, originalPath: original.path, originalName: original.name, files: {},
     moveOriginal: settings.movePDFtoFolder, deleteOriginal: settings.deleteOriginal,
   };
-  const images = settings.extractContent !== 'text' && !settings.disableImageExtraction ? data.images || {} : {};
+  const removeImages = settings.extractContent === 'text' || !!data.removeImages;
+  const images = removeImages ? {} : data.images || {};
   const imagePaths: Record<string, string> = Object.create(null);
   for (const [name, content] of Object.entries(images)) {
     const cleanName = safeRelativePath(name);
@@ -108,7 +109,7 @@ export function prepareArtifacts(
     return target ? target.replace(/ /g, '%20') : src;
   };
   if (settings.extractContent !== 'images' && data.markdown) {
-    let markdown = rewriteMarkdownImages(data.markdown, rewrite, settings.extractContent === 'text' || !!settings.disableImageExtraction);
+    let markdown = rewriteMarkdownImages(data.markdown, rewrite, removeImages);
     if (settings.writeMetadata && data.metadata) {
       const metadata: Record<string, unknown> = {};
       for (const key of metadataKeys) {
@@ -140,7 +141,7 @@ export function prepareArtifacts(
   if (settings.saveHtmlOutput && settings.extractContent !== 'images' && data.html) {
     let html = data.html.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi,
       (_match, prefix: string, src: string, suffix: string) => prefix + rewrite(src) + suffix);
-    if (settings.extractContent === 'text' || settings.disableImageExtraction) html = html.replace(/<img[^>]*>/gi, '');
+    if (removeImages) html = html.replace(/<img[^>]*>/gi, '');
     const path = folderPath + safeRelativePath(original.basename + '.html');
     if (result.files[path]) throw new Error('Attachment collides with the HTML output');
     result.files[path] = { content: html, binary: false };

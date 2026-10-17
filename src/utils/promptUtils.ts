@@ -162,20 +162,24 @@ export function isRuleActive(
   }
 }
 
-export function buildSystemPrompt(
-  settings: MarkerSettings,
-  imageExtraction: boolean
+/**
+ * Joins base instructions and the active rules into a single prompt
+ */
+export function buildPrompt(
+  intro: string | undefined,
+  rules: PromptRule[] | undefined,
+  imageExtraction = false
 ): string {
   const parts: string[] = [];
-  const intro = (settings.openaiSystemPrompt ?? '').trim();
-  if (intro) parts.push(intro);
+  const trimmedIntro = (intro ?? '').trim();
+  if (trimmedIntro) parts.push(trimmedIntro);
 
-  const rules = (settings.openaiPromptRules ?? []).filter((rule) =>
+  const activeRules = (rules ?? []).filter((rule) =>
     isRuleActive(rule, imageExtraction)
   );
-  if (rules.length > 0) {
+  if (activeRules.length > 0) {
     parts.push('# Rules');
-    rules.forEach((rule) => {
+    activeRules.forEach((rule) => {
       const name = rule.name.trim();
       const content = rule.content.trim();
       parts.push(name ? `## ${name}\n${content}` : content);
@@ -183,4 +187,15 @@ export function buildSystemPrompt(
   }
 
   return parts.join('\n\n');
+}
+
+export function buildSystemPrompt(
+  settings: MarkerSettings,
+  imageExtraction: boolean
+): string {
+  return buildPrompt(
+    settings.openaiSystemPrompt,
+    settings.openaiPromptRules,
+    imageExtraction
+  );
 }

@@ -5,10 +5,11 @@ export const CLI_LABELS: Record<CliProvider, string> = {
   cursor: 'Cursor Agent', opencode: 'OpenCode', hermes: 'Hermes',
 };
 
+// Formatting settings captured for a single job, with the prompt already built
 export interface FormattingSettings {
   cliFormattingEnabled: boolean;
   cliProvider: CliProvider | '';
-  cliPromptOverride: string | null;
+  cliInstructions: string;
   cliTimeoutMinutes: number;
 }
 

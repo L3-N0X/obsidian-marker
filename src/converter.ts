@@ -6,6 +6,8 @@ export interface ConversionResult {
   markdown?: string;
   html?: string;
   images?: { [key: string]: string };
+  // Set by converters whose own settings turned off images for this result
+  removeImages?: boolean;
   metadata?: { [key: string]: any };
   success: boolean;
   error?: string;
@@ -27,6 +29,7 @@ import { checkSettings } from './utils/settingsUtils';
 import { getSecretValue } from './utils/secretUtils';
 import { prepareArtifacts } from './cli/content';
 import { FormattingPipeline } from './cli/jobs';
+import { formattingFromSettings } from './cli/prompt';
 
 export abstract class BaseConverter implements Converter {
   constructor(protected app: App, protected pipeline: FormattingPipeline) {}
@@ -80,12 +83,7 @@ export abstract class BaseConverter implements Converter {
         parse: parseYaml, stringify: stringifyYaml,
       });
       if (source) { prepared.sourceMtime = source.mtime; prepared.sourceSize = source.size; }
-      const outcome = await this.pipeline.process({ prepared, formatting: {
-        cliFormattingEnabled: settings.cliFormattingEnabled,
-        cliProvider: settings.cliProvider,
-        cliPromptOverride: settings.cliPromptOverride,
-        cliTimeoutMinutes: settings.cliTimeoutMinutes,
-      } });
+      const outcome = await this.pipeline.process({ prepared, formatting: formattingFromSettings(settings) });
       return outcome === 'formatted' || outcome === 'raw';
     } catch (error) {
       new Notice(`Conversion failed: ${error.message || 'Unknown error'}`);

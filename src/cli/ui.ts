@@ -1,7 +1,19 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type Marker from '../main';
-import { DEFAULT_FORMAT_PROMPT } from './prompt';
+import { PromptEditorConfig, PromptEditorModal } from '../promptEditorModal';
+import { DEFAULT_FORMAT_SYSTEM_PROMPT, buildFormatInstructions, formattingFromSettings, getDefaultFormatRules } from './prompt';
 import { CLI_LABELS, CLI_PROVIDERS, CliProvider } from './types';
+
+const FORMAT_PROMPT_EDITOR_CONFIG: PromptEditorConfig = {
+  title: 'Formatting prompt',
+  description: 'The instructions are built from the base instructions followed by every enabled rule. Write rules as bullet points. The host always adds the document scope, the preservation review and the completion report.',
+  introKey: 'cliSystemPrompt',
+  rulesKey: 'cliPromptRules',
+  defaultIntro: DEFAULT_FORMAT_SYSTEM_PROMPT,
+  getDefaultRules: getDefaultFormatRules,
+  showConditions: false,
+  buildPreview: buildFormatInstructions,
+};
 
 export function renderCliSettings(container: HTMLElement, plugin: Marker): void {
   container.createEl('h3', { text: 'CLI formatting' });
@@ -47,23 +59,17 @@ export function renderCliSettings(container: HTMLElement, plugin: Marker): void 
       if (!Number.isFinite(minutes) || minutes < 0 || minutes > 10080) return;
       plugin.settings.cliTimeoutMinutes = minutes; await plugin.saveSettings();
     }));
-  let promptArea: { setValue: (value: string) => void } | undefined;
-  new Setting(advanced).setName('Formatting prompt').setDesc('Starts with your formatting skill. The host adds document scope, preservation review, and completion instructions.')
-    .addTextArea(text => {
-      let changed = false;
-      promptArea = text;
-      text.inputEl.addClass('marker-format-prompt');
-      text.setValue(plugin.settings.cliPromptOverride ?? DEFAULT_FORMAT_PROMPT);
-      text.onChange(value => { changed = true; plugin.settings.cliPromptOverride = value; });
-      // Save on blur so each keystroke does not recreate converter instances or write settings.
-      text.inputEl.addEventListener('blur', () => {
-        if (changed) { changed = false; void plugin.saveSettings(); }
-      });
-    })
-    .addButton(button => button.setButtonText('Reset prompt').onClick(async () => {
-      plugin.settings.cliPromptOverride = null;
-      promptArea?.setValue(DEFAULT_FORMAT_PROMPT); await plugin.saveSettings();
+  const promptSetting = new Setting(advanced).setName('Formatting prompt')
+    .addButton(button => button.setButtonText('Edit prompt').onClick(() => {
+      new PromptEditorModal(plugin.app, FORMAT_PROMPT_EDITOR_CONFIG, plugin.settings,
+        () => plugin.saveSettings(), updatePromptDescription).open();
     }));
+  const updatePromptDescription = (): void => {
+    const rules = plugin.settings.cliPromptRules ?? [];
+    const enabled = rules.filter(rule => rule.enabled).length;
+    promptSetting.setDesc(`Instructions for the agent. The host adds document scope, preservation review, and completion instructions. ${enabled} of ${rules.length} rules enabled.`);
+  };
+  updatePromptDescription();
   for (const provider of CLI_PROVIDERS) {
     let draft = plugin.cliPathOverrides[provider] || '';
     new Setting(advanced).setName(`${CLI_LABELS[provider]} executable`).setDesc('Optional absolute path, saved only on this device. Clear to use detection.')
@@ -98,7 +104,7 @@ export class ConversionJobsModal extends Modal {
     for (const job of pending) {
       new Setting(container).setName(job.prepared.originalName).setDesc(`${job.stage}${job.error ? ` · ${job.error}` : ''}`)
         .addButton(button => button.setButtonText('Retry').onClick(() => {
-          void this.plugin.pipeline.recover(job.id, false, this.plugin.settings).then(() => this.render());
+          void this.plugin.pipeline.recover(job.id, false, formattingFromSettings(this.plugin.settings)).then(() => this.render());
         }))
         .addButton(button => button.setButtonText('Import raw').onClick(() => {
           void this.plugin.pipeline.recover(job.id, true).then(() => this.render());

@@ -11,10 +11,25 @@ import { BaseConverter, ConversionResult } from '../converter';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 import {
   buildSystemPrompt,
+  DEFAULT_SYSTEM_PROMPT,
+  getDefaultPromptRules,
   isImageExtractionEnabled,
   PAGE_BREAK_MARKER,
 } from '../utils/promptUtils';
-import { PromptEditorModal } from '../promptEditorModal';
+import { PromptEditorConfig, PromptEditorModal } from '../promptEditorModal';
+
+const PROMPT_EDITOR_CONFIG: PromptEditorConfig = {
+  title: 'System prompt',
+  description:
+    'The prompt is built from the base instructions followed by every enabled rule. Write rules as bullet points. Rules with a condition are only sent when it applies.',
+  introKey: 'openaiSystemPrompt',
+  rulesKey: 'openaiPromptRules',
+  defaultIntro: DEFAULT_SYSTEM_PROMPT,
+  getDefaultRules: getDefaultPromptRules,
+  showConditions: true,
+  buildPreview: (settings) =>
+    buildSystemPrompt(settings, isImageExtractionEnabled(settings)),
+};
 
 interface ChatContentPart {
   type: 'text' | 'image_url' | 'file';
@@ -725,7 +740,13 @@ export class OpenAICompatibleConverter extends BaseConverter {
         defaultValue: undefined,
         buttonText: 'Edit prompt',
         buttonAction: (app, settings, saveSettings, refresh) => {
-          new PromptEditorModal(app, settings, saveSettings, refresh).open();
+          new PromptEditorModal(
+            app,
+            PROMPT_EDITOR_CONFIG,
+            settings,
+            saveSettings,
+            refresh
+          ).open();
         },
       },
       {

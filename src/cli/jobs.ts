@@ -1,6 +1,6 @@
 import { CliDetector } from './detection';
 import { safeRelativePath } from './content';
-import { DEFAULT_FORMAT_PROMPT, buildJobPrompt } from './prompt';
+import { DEFAULT_FORMAT_SYSTEM_PROMPT, buildFormatInstructions, buildJobPrompt, getDefaultFormatRules } from './prompt';
 import { OutputStore, publishArtifacts, snapshotDestination } from './publication';
 import { runCli } from './runner';
 import { abortIfNeeded, CancelledError, errorMessage, node } from './runtime';
@@ -22,10 +22,15 @@ export interface ProcessRequest {
 }
 
 function formattingSnapshot(settings: FormattingSettings): FormattingSettings {
+  // Recovery records from older versions stored an optional prompt override instead
+  const legacy = (settings as { cliPromptOverride?: unknown }).cliPromptOverride;
+  const instructions = typeof settings.cliInstructions === 'string' ? settings.cliInstructions
+    : typeof legacy === 'string' ? legacy
+      : buildFormatInstructions({ cliSystemPrompt: DEFAULT_FORMAT_SYSTEM_PROMPT, cliPromptRules: getDefaultFormatRules() });
   return {
     cliFormattingEnabled: settings.cliFormattingEnabled === true,
     cliProvider: CLI_PROVIDERS.includes(settings.cliProvider as CliProvider) ? settings.cliProvider : '',
-    cliPromptOverride: typeof settings.cliPromptOverride === 'string' ? settings.cliPromptOverride : null,
+    cliInstructions: instructions,
     cliTimeoutMinutes: Number.isFinite(settings.cliTimeoutMinutes) && settings.cliTimeoutMinutes >= 0 && settings.cliTimeoutMinutes <= 10080 ? settings.cliTimeoutMinutes : 0,
   };
 }
@@ -248,7 +253,7 @@ export class FormattingPipeline {
       await fs.writeFile(destination, Buffer.from(artifact.content, 'base64'));
     }
     await fs.writeFile(path.join(work, 'document.md'), original);
-    await fs.writeFile(path.join(work, 'prompt.txt'), buildJobPrompt(job.formatting.cliPromptOverride ?? DEFAULT_FORMAT_PROMPT, job.id));
+    await fs.writeFile(path.join(work, 'prompt.txt'), buildJobPrompt(job.formatting.cliInstructions, job.id));
     // Cursor's force flag still enforces explicit deny rules. Disable irrelevant tools in this workspace.
     if (installation.provider === 'cursor') {
       await fs.mkdir(path.join(work, '.cursor'));

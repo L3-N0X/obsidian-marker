@@ -210,6 +210,8 @@ export class DatalabConverter extends BaseConverter {
         conversionResult.html = apiResponse.html || '';
         conversionResult.images = apiResponse.images || {};
         conversionResult.metadata = apiResponse.metadata || {};
+        conversionResult.removeImages =
+          this.shouldDisableImageExtraction(settings);
       } else {
         console.error('Datalab conversion failed:', apiResponse);
         new Notice(

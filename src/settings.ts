@@ -6,10 +6,19 @@ import {
   PromptRule,
   getDefaultPromptRules,
 } from './utils/promptUtils';
-import { FormattingSettings } from './cli/types';
+import { CliProvider } from './cli/types';
 import { renderCliSettings } from './cli/ui';
+import { DEFAULT_FORMAT_SYSTEM_PROMPT, getDefaultFormatRules } from './cli/prompt';
 
-export interface MarkerSettings extends FormattingSettings {
+export interface MarkerSettings {
+  // CLI formatting
+  cliFormattingEnabled: boolean;
+  cliProvider: CliProvider | '';
+  cliTimeoutMinutes: number;
+  cliSystemPrompt?: string;
+  cliPromptRules?: PromptRule[];
+  /** @deprecated Single prompt text, migrated to cliSystemPrompt */
+  cliPromptOverride?: string | null;
   markerEndpoint: string;
   pythonEndpoint: string;
   createFolder: boolean;
@@ -91,8 +100,9 @@ export interface MarkerSettings extends FormattingSettings {
 export const DEFAULT_SETTINGS: MarkerSettings = {
   cliFormattingEnabled: false,
   cliProvider: '',
-  cliPromptOverride: null,
   cliTimeoutMinutes: 0,
+  cliSystemPrompt: DEFAULT_FORMAT_SYSTEM_PROMPT,
+  cliPromptRules: getDefaultFormatRules(),
   markerEndpoint: 'localhost:8000',
   pythonEndpoint: 'localhost:8001',
   createFolder: true,

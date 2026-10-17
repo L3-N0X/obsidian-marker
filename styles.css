@@ -282,13 +282,6 @@
   }
 }
 /* CLI formatter settings and job controls. */
-.marker-format-prompt {
-  width: 100%;
-  min-width: 320px;
-  min-height: 260px;
-  font-family: var(--font-monospace);
-  resize: vertical;
-}
 .marker-cli-detection {
   margin: 0.2em 0 0.6em;
   font-size: var(--font-ui-smaller);

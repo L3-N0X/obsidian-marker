@@ -1,5 +1,97 @@
-// Bundled baseline from the user-provided format skill. User overrides live in settings.
-export const DEFAULT_FORMAT_PROMPT = "You are a Markdown Data & Structure Specialist, an expert in organizing and formatting markdown documentation with a focus on high-fidelity data preservation. Your sole purpose is to improve the structure, hierarchy, and formatting of markdown files while meticulously preserving every single piece of granular information, data, and nuance.\n\nWhen processing markdown files, you will:\n\n**Core Responsibilities:**\n1. Scan all .md files in the specified directory recursively, cp file to backup.md and work on original .md file directly\n2. Analyze and fix heading hierarchies to ensure logical flow (H1 → H2 → H3 → H4)\n3. Ensure consistent markdown formatting throughout all files\n4. Never summarize. Identify related sections and integrate them additively, ensuring every unique data point, list item, and nuance is preserved.\n5. Maintain **absolute information integrity** - never omit, condense, or fabricate any content. EVERY GRANULAR DETAIL MUST REMAIN.\n6. If two sections cover the same topic, append the information rather than trying to \"deduplicate\" if there is any risk of losing context or specific phrasing.\n\n**Specific Actions:**\n- Fix heading level violations (e.g., H3 jumping to H1)\n- Ensure proper spacing around headings (2 blank lines before H1/H2, 1 blank line before H3+)\n- Standardize bullet points, numbered lists, and code blocks while keeping nested structures intact\n- Integrate related sections by merging all unique points into a single cohesive list or set of paragraphs.\n- When \"combining,\" perform a logical UNION of all data points. If in doubt, retain both versions.\n- Add **bold** or *italic* emphasis to highlight important concepts or key terms\n- Ensure consistent use of markdown syntax (e.g., consistent bullet point styles)\n- Preserve all metadata, tags, or hidden comments (if any)\n- Remove **repetitive footnotes** — if the same footnote content (e.g., duplicate dates, repeated source notes, or identical comment lines) appears multiple times throughout a file, keep a single canonical instance and delete the redundant copies. This applies only to *true duplicates*: identical or near-identical repeated entries. Never remove a footnote that is unique, since that would violate the additive-integrity rule above.\n\n**Quality Assurance:**\n- Verify no information is lost during combination. Integration must be 100% additive; zero loss of granular data (numbers, dates, specific names, sub-bullets).\n- Place attachments side by side as such ![[]]![[]] if found next to one another.\n- Ensure all links and references remain valid.\n- Check that heading hierarchy is logical and never jumps levels.\n- Confirm uniform formatting style across all files.\n- Validate that integrated content flows naturally without sacrificing detail.\n- Re-review content against the backup: If the new version is shorter than the combined length of the original parts (excluding formatting overhead), explain why or revert to additive merging.\n\n**Output Format:**\n- Present the improved markdown files clearly\n- Highlight structural changes made\n- Note any sections that were combined\n- Emphasize key improvements with **bold formatting**\n\nYou are meticulous about preserving all original information, numbers, data, and specific details. 100% of the original content must be retained. Your work transforms messy markdown into well-organized, professionally formatted documentation without sacrificing a single byte of information yet devoid repetition.\n\nAfter completion, perform a rigorous peer review comparison between the original backup and the new version. Every data point, number, date, sub-bullet, and specific detail from the original MUST be present in the new version. If any granular information—no matter how small—is missing or summarized, you must re-integrate it. Your goal is structural improvement through ADDITION and REORGANIZATION, never through CONDENSATION.\n\n**Final Cleanup:**\n- Only after the final verification passes — no information lost, all content confirmed sound, and the heading structure is superior to the original — remove the backup.md file(s).\n- Never delete the backup if verification is incomplete or reveals any missing/condensed content; keep it until re-integration is finished and re-verification succeeds.\n- Confirm removal only when every processed file has its own verified, improved version in place.\n";
+import type { MarkerSettings } from '../settings';
+import { PromptRule, buildPrompt } from '../utils/promptUtils';
+import type { FormattingSettings } from './types';
+
+export const DEFAULT_FORMAT_SYSTEM_PROMPT =
+  'You are a meticulous Markdown editor. You improve the structure and formatting of a note that was extracted from a document, while preserving every single piece of information in it. Follow every rule below exactly.';
+
+const DEFAULT_FORMAT_RULES: PromptRule[] = [
+  {
+    id: 'integrity',
+    name: 'Information integrity',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Never summarize, shorten, paraphrase, translate or invent content. Every number, date, name, list item and sub-bullet must remain.',
+      '- Improve the structure only by reorganizing and adding formatting, never by condensing.',
+      '- When two sections cover the same topic, merge them additively and keep the union of all points. If in doubt, keep both versions.',
+      '- Keep all metadata, tags and comments.',
+    ].join('\n'),
+  },
+  {
+    id: 'structure',
+    name: 'Headings and structure',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Fix the heading hierarchy so it is logical and never skips levels (e.g. H1 directly followed by H3).',
+      '- Put one blank line before and after headings, lists, tables, code blocks and callouts.',
+      '- Use consistent list markers and keep the nesting of lists intact.',
+    ].join('\n'),
+  },
+  {
+    id: 'cleanup',
+    name: 'Extraction cleanup',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Join lines that were broken in the middle of a paragraph. Keep every word and number exactly as written, the host rejects edits that remove any of them.',
+      '- Remove exact duplicates of repeated footnotes or source notes and keep one instance. Never remove a footnote that is unique.',
+    ].join('\n'),
+  },
+  {
+    id: 'tables',
+    name: 'Tables',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Make sure every table is a valid Markdown pipe table with a header row and a `| --- |` separator row.',
+      '- Keep every row and column. Never drop, merge or reorder data.',
+    ].join('\n'),
+  },
+  {
+    id: 'emphasis',
+    name: 'Emphasis',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Use **bold** or *italic* sparingly to highlight key terms and important concepts.',
+    ].join('\n'),
+  },
+  {
+    id: 'obsidian',
+    name: 'Obsidian formatting',
+    enabled: true,
+    condition: 'always',
+    content: [
+      '- Turn boxed notes, tips and warnings into Obsidian callouts such as `> [!note]`, `> [!tip]` or `> [!warning]`.',
+      '- Place images that directly follow each other side by side on the same line, e.g. `![[a.png]]![[b.png]]`.',
+      '- Do not invent wikilinks (`[[...]]`) or tags.',
+    ].join('\n'),
+  },
+];
+
+export function getDefaultFormatRules(): PromptRule[] {
+  return DEFAULT_FORMAT_RULES.map((rule) => ({ ...rule }));
+}
+
+export function buildFormatInstructions(
+  settings: Pick<MarkerSettings, 'cliSystemPrompt' | 'cliPromptRules'>
+): string {
+  return buildPrompt(settings.cliSystemPrompt, settings.cliPromptRules);
+}
+
+// Snapshot of the settings a formatting job needs, with the prompt resolved
+export function formattingFromSettings(
+  settings: MarkerSettings
+): FormattingSettings {
+  return {
+    cliFormattingEnabled: settings.cliFormattingEnabled,
+    cliProvider: settings.cliProvider,
+    cliInstructions: buildFormatInstructions(settings),
+    cliTimeoutMinutes: settings.cliTimeoutMinutes,
+  };
+}
 
 export function buildJobPrompt(instructions: string, jobId: string): string {
   return `Format only document.md in the current working directory. Read the formatting instructions below.
@@ -10,9 +102,9 @@ Create backup.md from document.md before editing. Exclude backup.md and any othe
 Use file read/write/edit tools. Shell commands and external tools are unnecessary.
 Apply these formatting instructions to document.md only:
 
-${instructions}
+${instructions.trim() || 'Improve the structure and formatting of the document.'}
 
-Execution contract (takes precedence over directory scanning and output instructions above):
+Execution contract (takes precedence over the formatting instructions above):
 The only document to format is document.md. Preserve every unique detail. Never summarize.
 Compare the complete original backup with the complete edited document; restore anything missing.
 A document that already needs no changes is valid after review.

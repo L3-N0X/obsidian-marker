@@ -12,16 +12,26 @@ import {
 import { MarkerSettings } from './settings';
 import { MarkerOkayCancelDialog } from './modals';
 import {
-  DEFAULT_SYSTEM_PROMPT,
   PROMPT_RULE_CONDITIONS,
   PromptRule,
   PromptRuleCondition,
-  buildSystemPrompt,
-  getDefaultPromptRules,
-  isImageExtractionEnabled,
 } from './utils/promptUtils';
 
+// Describes which prompt the editor works on and how it is assembled
+export interface PromptEditorConfig {
+  title: string;
+  description: string;
+  introKey: 'openaiSystemPrompt' | 'cliSystemPrompt';
+  rulesKey: 'openaiPromptRules' | 'cliPromptRules';
+  defaultIntro: string;
+  getDefaultRules: () => PromptRule[];
+  // Whether rules can be limited to conversions with or without image extraction
+  showConditions: boolean;
+  buildPreview: (settings: MarkerSettings) => string;
+}
+
 export class PromptEditorModal extends Modal {
+  private config: PromptEditorConfig;
   private settings: MarkerSettings;
   private saveSettings: () => Promise<void>;
   private onCloseCallback?: () => void;
@@ -31,21 +41,24 @@ export class PromptEditorModal extends Modal {
 
   constructor(
     app: App,
+    config: PromptEditorConfig,
     settings: MarkerSettings,
     saveSettings: () => Promise<void>,
     onCloseCallback?: () => void
   ) {
     super(app);
+    this.config = config;
     this.settings = settings;
     this.saveSettings = saveSettings;
     this.onCloseCallback = onCloseCallback;
   }
 
   private get rules(): PromptRule[] {
-    if (!this.settings.openaiPromptRules) {
-      this.settings.openaiPromptRules = getDefaultPromptRules();
+    const { rulesKey } = this.config;
+    if (!this.settings[rulesKey]) {
+      this.settings[rulesKey] = this.config.getDefaultRules();
     }
-    return this.settings.openaiPromptRules;
+    return this.settings[rulesKey] as PromptRule[];
   }
 
   onOpen() {
@@ -53,18 +66,18 @@ export class PromptEditorModal extends Modal {
     modalEl.addClass('marker-prompt-modal');
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: 'System prompt' });
+    contentEl.createEl('h2', { text: this.config.title });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
-      text: 'The prompt is built from the base instructions followed by every enabled rule. Write rules as bullet points. Rules with a condition are only sent when it applies.',
+      text: this.config.description,
     });
 
     contentEl.createEl('h3', { text: 'Base instructions' });
     const intro = new TextAreaComponent(contentEl)
-      .setValue(this.settings.openaiSystemPrompt ?? '')
-      .setPlaceholder(DEFAULT_SYSTEM_PROMPT)
+      .setValue(this.settings[this.config.introKey] ?? '')
+      .setPlaceholder(this.config.defaultIntro)
       .onChange((value) => {
-        this.settings.openaiSystemPrompt = value;
+        this.settings[this.config.introKey] = value;
         this.changed();
       });
     intro.inputEl.addClass('marker-prompt-intro');
@@ -139,14 +152,18 @@ export class PromptEditorModal extends Modal {
       });
     nameInput.inputEl.addClass('marker-prompt-rule-name');
 
-    const conditionDropdown = new DropdownComponent(header);
-    PROMPT_RULE_CONDITIONS.forEach((condition) =>
-      conditionDropdown.addOption(condition.value, condition.label)
-    );
-    conditionDropdown.setValue(rule.condition ?? 'always').onChange((value) => {
-      rule.condition = value as PromptRuleCondition;
-      this.changed();
-    });
+    if (this.config.showConditions) {
+      const conditionDropdown = new DropdownComponent(header);
+      PROMPT_RULE_CONDITIONS.forEach((condition) =>
+        conditionDropdown.addOption(condition.value, condition.label)
+      );
+      conditionDropdown
+        .setValue(rule.condition ?? 'always')
+        .onChange((value) => {
+          rule.condition = value as PromptRuleCondition;
+          this.changed();
+        });
+    }
 
     new ExtraButtonComponent(header)
       .setIcon('arrow-up')
@@ -243,12 +260,12 @@ export class PromptEditorModal extends Modal {
   private confirmReset() {
     new MarkerOkayCancelDialog(
       this.app,
-      'Reset system prompt',
+      `Reset ${this.config.title.toLowerCase()}`,
       'This replaces the base instructions and all rules, including your own rules, with the defaults.',
       (confirmed) => {
         if (!confirmed) return;
-        this.settings.openaiSystemPrompt = DEFAULT_SYSTEM_PROMPT;
-        this.settings.openaiPromptRules = getDefaultPromptRules();
+        this.settings[this.config.introKey] = this.config.defaultIntro;
+        this.settings[this.config.rulesKey] = this.config.getDefaultRules();
         this.onOpen();
         this.changed();
       }
@@ -257,9 +274,7 @@ export class PromptEditorModal extends Modal {
 
   private renderPreview() {
     if (!this.previewEl) return;
-    this.previewEl.setText(
-      buildSystemPrompt(this.settings, isImageExtractionEnabled(this.settings))
-    );
+    this.previewEl.setText(this.config.buildPreview(this.settings));
   }
 
   private changed() {

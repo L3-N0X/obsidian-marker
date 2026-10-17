@@ -12,6 +12,7 @@ import {
   MATHPIX_SUPPORTED_EXTENSIONS,
 } from './converters/mathpixConverter';
 import { getDefaultPromptRules } from './utils/promptUtils';
+import { getDefaultFormatRules } from './cli/prompt';
 import { migrateKeysToSecretStorage } from './utils/secretUtils';
 import { FormattingPipeline } from './cli/jobs';
 import { CLI_PROVIDERS, CliProvider, JobProgress, PreparedConversion, ProcessingOutcome } from './cli/types';
@@ -234,9 +235,25 @@ export default class Marker extends Plugin {
       this.settings.openaiPromptRules ?? getDefaultPromptRules()
     ).map((rule) => ({ ...rule }));
     let migrated = migrateKeysToSecretStorage(this.app, this.settings);
+    // The formatting prompt used to be a single text, keep a custom one as the
+    // base instructions and start with the default rules turned off
+    if ('cliPromptOverride' in this.settings) {
+      const legacyPrompt = this.settings.cliPromptOverride;
+      if (typeof legacyPrompt === 'string' && legacyPrompt.trim()) {
+        this.settings.cliSystemPrompt = legacyPrompt;
+        this.settings.cliPromptRules = getDefaultFormatRules().map((rule) => ({
+          ...rule,
+          enabled: false,
+        }));
+      }
+      delete this.settings.cliPromptOverride;
+      migrated = true;
+    }
+    this.settings.cliPromptRules = (
+      this.settings.cliPromptRules ?? getDefaultFormatRules()
+    ).map((rule) => ({ ...rule }));
     this.settings.cliFormattingEnabled = this.settings.cliFormattingEnabled === true;
     if (!CLI_PROVIDERS.includes(this.settings.cliProvider as CliProvider)) this.settings.cliProvider = '';
-    if (this.settings.cliPromptOverride !== null && typeof this.settings.cliPromptOverride !== 'string') this.settings.cliPromptOverride = null;
     if (!Number.isFinite(this.settings.cliTimeoutMinutes) || this.settings.cliTimeoutMinutes < 0 || this.settings.cliTimeoutMinutes > 10080) this.settings.cliTimeoutMinutes = 0;
     if (this.settings.apiEndpoint === 'python-api') {
       this.settings.apiEndpoint = 'python-local-api';
