@@ -130,7 +130,7 @@ export class MathpixConverter extends BaseConverter {
   private getHeaders(settings: MarkerSettings): Record<string, string> {
     return {
       app_id: settings.mathpixAppId ?? '',
-      app_key: settings.mathpixAppKey ?? '',
+      app_key: this.getSecret(settings.mathpixAppKeySecret),
     };
   }
 
@@ -400,8 +400,11 @@ export class MathpixConverter extends BaseConverter {
     settings: MarkerSettings,
     silent: boolean | undefined
   ): Promise<boolean> {
-    if (!settings.mathpixAppId || !settings.mathpixAppKey) {
-      new Notice('Error: Mathpix app ID and app key are not configured');
+    if (
+      !settings.mathpixAppId ||
+      !this.getSecret(settings.mathpixAppKeySecret)
+    ) {
+      new Notice('Error: Mathpix app ID or app key secret is not configured');
       return false;
     }
 
@@ -441,11 +444,10 @@ export class MathpixConverter extends BaseConverter {
         defaultValue: '',
       },
       {
-        id: 'mathpixAppKey',
+        id: 'mathpixAppKeySecret',
         name: 'Mathpix app key',
-        description: 'Enter your Mathpix app key',
-        type: 'text',
-        placeholder: 'App key',
+        description: 'Select or create the secret holding your Mathpix app key',
+        type: 'secret',
         defaultValue: '',
         buttonText: 'Test connection',
         buttonAction: async (app, settings) => {

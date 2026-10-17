@@ -44,9 +44,9 @@ export class DatalabConverter extends BaseConverter {
       return true;
     }
 
-    if (!settings.datalabApiKey) {
-      new Notice('Error: Datalab API key is not configured');
-      console.error('Missing Datalab API key in settings');
+    if (!this.getApiKey(settings)) {
+      new Notice('Error: No Datalab API key found, select a secret in the settings');
+      console.error('Missing Datalab API key in secret storage');
       return false;
     }
 
@@ -125,7 +125,7 @@ export class DatalabConverter extends BaseConverter {
         body: formData.body,
         headers: {
           'Content-Type': `multipart/form-data; boundary=${formData.boundary}`,
-          'X-Api-Key': settings.datalabApiKey ?? '',
+          'X-Api-Key': this.getApiKey(settings),
         },
         throw: false,
       };
@@ -273,8 +273,8 @@ export class DatalabConverter extends BaseConverter {
     settings: MarkerSettings,
     silent: boolean | undefined
   ): Promise<boolean> {
-    if (!settings.datalabApiKey) {
-      new Notice('Err: Datalab API key not set');
+    if (!this.getApiKey(settings)) {
+      new Notice('Error: No Datalab API key found, select a secret in the settings');
       return false;
     }
 
@@ -283,7 +283,7 @@ export class DatalabConverter extends BaseConverter {
         url: 'https://www.datalab.to/api/v1/user_health',
         method: 'GET',
         headers: {
-          'X-Api-Key': settings.datalabApiKey,
+          'X-Api-Key': this.getApiKey(settings),
         },
       });
 
@@ -323,7 +323,7 @@ export class DatalabConverter extends BaseConverter {
         url: requestCheckUrl,
         method: 'GET',
         headers: {
-          'X-Api-Key': settings.datalabApiKey ?? '',
+          'X-Api-Key': this.getApiKey(settings),
         },
         throw: false,
       });
@@ -353,7 +353,7 @@ export class DatalabConverter extends BaseConverter {
             url: requestCheckUrl,
             method: 'GET',
             headers: {
-              'X-Api-Key': settings.datalabApiKey ?? '',
+              'X-Api-Key': this.getApiKey(settings),
             },
             throw: false,
           });
@@ -406,14 +406,17 @@ export class DatalabConverter extends BaseConverter {
     }
   }
 
+  private getApiKey(settings: MarkerSettings): string {
+    return this.getSecret(settings.datalabApiKeySecret);
+  }
+
   getConverterSettings(): ConverterSettingDefinition[] {
     return [
       {
-        id: 'datalabApiKey',
+        id: 'datalabApiKeySecret',
         name: 'API Key',
-        description: 'Enter your Datalab API key',
-        type: 'text',
-        placeholder: 'API Key',
+        description: 'Select or create the secret holding your Datalab API key',
+        type: 'secret',
         defaultValue: '',
         buttonText: 'Test connection',
         buttonAction: async (app, settings) => {

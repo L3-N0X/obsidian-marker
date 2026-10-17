@@ -510,7 +510,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
   }
 
   private getHeaders(settings: MarkerSettings): Record<string, string> {
-    const apiKey = (settings.openaiApiKey ?? '').trim();
+    const apiKey = this.getSecret(settings.openaiApiKeySecret);
     return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
   }
 
@@ -632,11 +632,11 @@ export class OpenAICompatibleConverter extends BaseConverter {
         defaultValue: 'https://api.openai.com/v1',
       },
       {
-        id: 'openaiApiKey',
+        id: 'openaiApiKeySecret',
         name: 'API key',
-        description: 'Leave empty for local servers that do not need a key',
-        type: 'text',
-        placeholder: 'API Key',
+        description:
+          'Select or create the secret holding your API key, leave empty for local servers that do not need a key',
+        type: 'secret',
         defaultValue: '',
         buttonText: 'Test connection',
         buttonAction: async (app, settings) => {

@@ -18,8 +18,13 @@ export interface MarkerSettings {
   createAssetSubfolder: boolean;
   apiEndpoint: string;
   apiKey?: string; // Keep for backward compatibility and selfhosted/python-api
-  datalabApiKey?: string; // Specific key for Datalab
-  mistralaiApiKey?: string; // Specific key for MistralAI
+  // API keys are stored in Obsidian's secret storage, settings hold the secret names
+  datalabApiKeySecret?: string;
+  mistralaiApiKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to datalabApiKeySecret */
+  datalabApiKey?: string;
+  /** @deprecated Plaintext key, migrated to mistralaiApiKeySecret */
+  mistralaiApiKey?: string;
   langs?: string;
   forceOCR?: boolean;
   paginate?: boolean;
@@ -34,6 +39,8 @@ export interface MarkerSettings {
   deleteFileFromMistralaiAfterConversion?: boolean;
   // OpenAI compatible API parameters
   openaiBaseUrl?: string;
+  openaiApiKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to openaiApiKeySecret */
   openaiApiKey?: string;
   openaiModel?: string;
   openaiInputMode?: string; // 'images' renders pages, 'pdf' sends the file
@@ -46,6 +53,8 @@ export interface MarkerSettings {
   openaiPromptRules?: PromptRule[];
   // Mathpix parameters
   mathpixAppId?: string;
+  mathpixAppKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to mathpixAppKeySecret */
   mathpixAppKey?: string;
   mathpixOutputFormat?: string; // 'md' plain markdown, 'mmd' Mathpix Markdown
   mathpixPageRanges?: string;
@@ -65,8 +74,8 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   createAssetSubfolder: true,
   apiEndpoint: 'selfhosted',
   apiKey: '',
-  datalabApiKey: '',
-  mistralaiApiKey: '',
+  datalabApiKeySecret: '',
+  mistralaiApiKeySecret: '',
   langs: 'en',
   forceOCR: false,
   paginate: false,
@@ -79,7 +88,7 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   imageMinSize: 0, // Default to 0 (no minimum size)
   deleteFileFromMistralaiAfterConversion: false,
   openaiBaseUrl: 'https://api.openai.com/v1',
-  openaiApiKey: '',
+  openaiApiKeySecret: '',
   openaiModel: '',
   openaiInputMode: 'images',
   openaiPagesPerRequest: 1,
@@ -90,7 +99,7 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   openaiSystemPrompt: DEFAULT_SYSTEM_PROMPT,
   openaiPromptRules: getDefaultPromptRules(),
   mathpixAppId: '',
-  mathpixAppKey: '',
+  mathpixAppKeySecret: '',
   mathpixOutputFormat: 'md',
   mathpixPageRanges: '',
   mathpixIncludeEquationTags: false,

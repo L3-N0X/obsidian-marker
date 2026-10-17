@@ -51,7 +51,7 @@ When you want to support the development, consider buying me a coffee:
 
 To use this plugin, you'll need:
 
-1. A working Obsidian installation
+1. A working Obsidian installation (version 1.11.4 or newer)
 2. Access to a Marker API endpoint (self-hosted, paid service, or Python API server), a MistralAI API key, a Mathpix API key, OR an OpenAI compatible API with a vision model
 
 ## 🔧 Setup
@@ -66,6 +66,15 @@ To use this plugin, you'll need:
    - **Python Local API**: Run the Python server on the same local machine where Obsidian is running. It passes the absolute local file path to the API.
    - **Python Cloud API**: Run the Python server on a remote server, a separate machine, or in WSL. It uploads the file contents using multipart form data, which is necessary since the API server cannot access the local files directly.
 3. Configure your chosen endpoint/API key in the plugin settings
+
+### 🔑 API keys and secret storage
+
+API keys are kept in Obsidian's secret storage instead of the plugin's `data.json`, so they don't end up in plain text in your vault, backups or git repository. In the plugin settings, select an existing secret or create a new one for each key. A secret can be shared with other plugins, so you only enter e.g. your OpenAI key once.
+
+Keys saved by older versions of the plugin are moved to the secret storage automatically (as `datalab-api-key`, `mistral-api-key`, `openai-api-key` and `mathpix-app-key`).
+
+> [!NOTE]
+> Secrets are stored on the device and are **not synced** with your vault. When you use the plugin on several devices, create the secret on each device with the same name.
 
 ### Which solution should I use?
 
@@ -105,8 +114,8 @@ You can convert PDFs to Markdown in multiple ways:
 | **API Endpoint**            | 'selfhosted'        | Select the API endpoint to use: 'Datalab', 'Selfhosted', 'Python Local API', 'Python Cloud API', 'MistralAI', 'OpenAI compatible' or 'Mathpix'                                          |
 | **Marker API Endpoint**     | 'localhost:8000' | The endpoint to use for the Marker API. Only shown when 'Selfhosted' is selected as the API endpoint.  |
 | **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python Local API' or 'Python Cloud API' is selected as the API endpoint.                            |
-| **Datalab API Key**          | -                | Enter your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                           |
-| **MistralAI API Key**       | -                | Enter your MistralAI API key. Only shown when 'MistralAI' is selected as the API endpoint.                                                     |
+| **Datalab API Key**          | -                | Secret holding your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                  |
+| **MistralAI API Key**       | -                | Secret holding your MistralAI API key. Only shown when 'MistralAI' is selected as the API endpoint.                                            |
 | **Languages**               | 'en'             | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
 | **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
 | **Paginate**                | `false`          | Add horizontal rules between each page. Available for both Datalab and MistralAI endpoints.                                                         |
@@ -123,7 +132,7 @@ You can convert PDFs to Markdown in multiple ways:
 | Setting | Default | Description |
 | --- | --- | --- |
 | **Base URL** | `https://api.openai.com/v1` | Base URL of the API, e.g. `https://openrouter.ai/api/v1` or `http://localhost:11434/v1` for Ollama |
-| **API key** | - | Leave empty for local servers that do not need one |
+| **API key** | - | Secret holding your API key. Leave empty for local servers that do not need one |
 | **Model** | - | A model that supports image input, e.g. `gpt-4.1-mini` or a local vision model |
 | **Input mode** | Page images | *Page images* renders every page and works with every vision model. *PDF file* sends the PDF directly, which only some providers support |
 | **Pages per request** | `1` | How many pages are sent in one request |
@@ -151,7 +160,7 @@ Besides PDFs, Mathpix also converts `docx`, `doc`, `pptx`, `odt`, `wpd`, `epub`,
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| **Mathpix app ID** / **app key** | - | Your credentials from the [Mathpix console](https://console.mathpix.com/) |
+| **Mathpix app ID** / **app key** | - | Your credentials from the [Mathpix console](https://console.mathpix.com/). The app key is stored as a secret |
 | **Output format** | Markdown | *Markdown* is plain Markdown. *Mathpix Markdown* keeps advanced syntax (e.g. LaTeX tables) that Obsidian may not render |
 | **Page ranges** | - | Only convert these pages, e.g. `2,4-6` |
 | **Include equation tags** | `false` | Keep equation numbers as `\tag{}` |

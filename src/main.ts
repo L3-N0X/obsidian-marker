@@ -12,6 +12,7 @@ import {
   MATHPIX_SUPPORTED_EXTENSIONS,
 } from './converters/mathpixConverter';
 import { getDefaultPromptRules } from './utils/promptUtils';
+import { migrateKeysToSecretStorage } from './utils/secretUtils';
 
 export default class Marker extends Plugin {
   settings: MarkerSettings;
@@ -28,30 +29,30 @@ export default class Marker extends Plugin {
   private setConverter() {
     switch (this.settings.apiEndpoint) {
       case 'datalab':
-        this.converter = new DatalabConverter();
+        this.converter = new DatalabConverter(this.app);
         break;
       case 'selfhosted':
-        this.converter = new MarkerApiDockerConverter();
+        this.converter = new MarkerApiDockerConverter(this.app);
         break;
       case 'python-local-api':
-        this.converter = new PythonLocalAPIConverter();
+        this.converter = new PythonLocalAPIConverter(this.app);
         break;
       case 'python-cloud-api':
-        this.converter = new PythonCloudAPIConverter();
+        this.converter = new PythonCloudAPIConverter(this.app);
         break;
       case 'mistralai':
-        this.converter = new MistralAIConverter();
+        this.converter = new MistralAIConverter(this.app);
         break;
       case 'openai':
-        this.converter = new OpenAICompatibleConverter();
+        this.converter = new OpenAICompatibleConverter(this.app);
         break;
       case 'mathpix':
-        this.converter = new MathpixConverter();
+        this.converter = new MathpixConverter(this.app);
         break;
       default:
         console.error('Invalid API endpoint setting.');
         // Default to selfhosted if invalid setting
-        this.converter = new MarkerApiDockerConverter();
+        this.converter = new MarkerApiDockerConverter(this.app);
     }
   }
 
@@ -136,8 +137,12 @@ export default class Marker extends Plugin {
     this.settings.openaiPromptRules = (
       this.settings.openaiPromptRules ?? getDefaultPromptRules()
     ).map((rule) => ({ ...rule }));
+    let migrated = migrateKeysToSecretStorage(this.app, this.settings);
     if (this.settings.apiEndpoint === 'python-api') {
       this.settings.apiEndpoint = 'python-local-api';
+      migrated = true;
+    }
+    if (migrated) {
       await this.saveData(this.settings);
     }
   }

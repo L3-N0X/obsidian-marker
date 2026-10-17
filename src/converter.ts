@@ -25,8 +25,16 @@ import {
   getConversionFolderPath,
 } from './utils/fileUtils';
 import { checkSettings } from './utils/settingsUtils';
+import { getSecretValue } from './utils/secretUtils';
 
 export abstract class BaseConverter implements Converter {
+  constructor(protected app: App) {}
+
+  /** Resolves a secret name from the settings to its value on this device */
+  protected getSecret(secretName?: string): string {
+    return getSecretValue(this.app, secretName);
+  }
+
   abstract convert(
     app: App,
     settings: MarkerSettings,

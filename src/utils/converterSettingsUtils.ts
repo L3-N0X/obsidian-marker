@@ -1,4 +1,4 @@
-import { App, Setting } from 'obsidian';
+import { App, SecretComponent, Setting } from 'obsidian';
 import { MarkerSettings } from '../settings';
 import { Converter } from '../converter';
 
@@ -7,7 +7,7 @@ export interface ConverterSettingDefinition {
   id: string;
   name: string;
   description: string | ((settings: MarkerSettings) => string);
-  type: 'text' | 'toggle' | 'dropdown' | 'heading' | 'button';
+  type: 'text' | 'secret' | 'toggle' | 'dropdown' | 'heading' | 'button';
   defaultValue: any;
   placeholder?: string;
   options?: { value: string; label: string }[];
@@ -58,6 +58,24 @@ export function createConverterSetting(
             await saveSettings();
           });
       });
+      break;
+
+    case 'secret':
+      // Stores the name of a secret from Obsidian's secret storage, not the value
+      setting.addComponent((el) =>
+        new SecretComponent(app, el)
+          .setValue(
+            settings[definition.id as keyof MarkerSettings]?.toString() || ''
+          )
+          .onChange(async (value) => {
+            (settings[definition.id as keyof MarkerSettings] as any) =
+              value ?? '';
+            if (definition.onChange) {
+              await definition.onChange(value ?? '', settings);
+            }
+            await saveSettings();
+          })
+      );
       break;
 
     case 'toggle':
