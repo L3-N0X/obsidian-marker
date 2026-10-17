@@ -3,7 +3,6 @@ import { Mistral } from '@mistralai/mistralai';
 import { MarkerSettings } from '../settings';
 import { BaseConverter, ConversionResult } from '../converter';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
-import { deleteOriginalFile, checkForExistingFiles } from '../utils/fileUtils';
 import { OCRPageObject } from '@mistralai/mistralai/models/components';
 
 export class MistralAIConverter extends BaseConverter {
@@ -15,23 +14,16 @@ export class MistralAIConverter extends BaseConverter {
     const folderPath = await this.prepareConversion(settings, file);
     if (!folderPath) return false;
 
-    if (
-      (settings.extractContent === 'images' ||
-        settings.extractContent === 'all') &&
-      !(await checkForExistingFiles(app, folderPath))
-    ) {
-      return true;
-    }
-
-    if (!settings.mistralaiApiKey) {
-      new Notice('Error: MistralAI API key is not configured');
-      console.error('Missing MistralAI API key in settings');
+    const apiKey = this.getSecret(settings.mistralaiApiKeySecret);
+    if (!apiKey) {
+      new Notice('Error: No MistralAI API key found, select a secret in the settings');
+      console.error('Missing MistralAI API key in secret storage');
       return false;
     }
 
     new Notice('Converting file with MistralAI OCR...', 4000);
 
-    const client = new Mistral({ apiKey: settings.mistralaiApiKey });
+    const client = new Mistral({ apiKey });
     let uploadedFileId: string | undefined;
 
     try {
@@ -92,21 +84,12 @@ export class MistralAIConverter extends BaseConverter {
       );
 
       // Process the conversion result
-      await this.processConversionResult(
-        app,
+      return await this.processConversionResult(
         settings,
         conversionResult,
         folderPath,
         file
       );
-
-      new Notice('MistralAI OCR conversion completed successfully');
-
-      if (settings.deleteOriginal) {
-        await deleteOriginalFile(app, file);
-      }
-
-      return true;
     } catch (error) {
       console.error('MistralAI conversion error:', error.message, error.stack);
       new Notice(
@@ -213,14 +196,15 @@ export class MistralAIConverter extends BaseConverter {
     settings: MarkerSettings,
     silent: boolean | undefined
   ): Promise<boolean> {
-    if (!settings.mistralaiApiKey) {
-      if (!silent) new Notice('Error: MistralAI API key is not configured');
+    const apiKey = this.getSecret(settings.mistralaiApiKeySecret);
+    if (!apiKey) {
+      if (!silent) new Notice('Error: No MistralAI API key found, select a secret in the settings');
       return false;
     }
 
     try {
       // Initialize MistralAI client
-      const client = new Mistral({ apiKey: settings.mistralaiApiKey });
+      const client = new Mistral({ apiKey });
 
       // Make a simple API call to test the connection
       // We'll just list the models to see if the API key is valid and the connection is successful
@@ -245,11 +229,10 @@ export class MistralAIConverter extends BaseConverter {
   getConverterSettings(): ConverterSettingDefinition[] {
     return [
       {
-        id: 'mistralaiApiKey',
+        id: 'mistralaiApiKeySecret',
         name: 'MistralAI API Key',
-        description: 'Enter your MistralAI API key',
-        type: 'text',
-        placeholder: 'API Key',
+        description: 'Select or create the secret holding your MistralAI API key',
+        type: 'secret',
         defaultValue: '',
         buttonText: 'Test connection',
         buttonAction: async (app, settings) => {

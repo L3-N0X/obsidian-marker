@@ -1,8 +1,24 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import Marker from './main';
 import { renderConverterSettings } from './utils/converterSettingsUtils';
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  PromptRule,
+  getDefaultPromptRules,
+} from './utils/promptUtils';
+import { CliProvider } from './cli/types';
+import { renderCliSettings } from './cli/ui';
+import { DEFAULT_FORMAT_SYSTEM_PROMPT, getDefaultFormatRules } from './cli/prompt';
 
 export interface MarkerSettings {
+  // CLI formatting
+  cliFormattingEnabled: boolean;
+  cliProvider: CliProvider | '';
+  cliTimeoutMinutes: number;
+  cliSystemPrompt?: string;
+  cliPromptRules?: PromptRule[];
+  /** @deprecated Single prompt text, migrated to cliSystemPrompt */
+  cliPromptOverride?: string | null;
   markerEndpoint: string;
   pythonEndpoint: string;
   createFolder: boolean;
@@ -11,25 +27,82 @@ export interface MarkerSettings {
   writeMetadata: boolean;
   movePDFtoFolder: boolean;
   createAssetSubfolder: boolean;
+  backupRawExtraction: boolean;
   apiEndpoint: string;
   apiKey?: string; // Keep for backward compatibility and selfhosted/python-api
-  datalabApiKey?: string; // Specific key for Datalab
-  mistralaiApiKey?: string; // Specific key for MistralAI
-  langs?: string;
-  forceOCR?: boolean;
+  // API keys are stored in Obsidian's secret storage, settings hold the secret names
+  datalabApiKeySecret?: string;
+  mistralaiApiKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to datalabApiKeySecret */
+  datalabApiKey?: string;
+  /** @deprecated Plaintext key, migrated to mistralaiApiKeySecret */
+  mistralaiApiKey?: string;
+  langs?: string; // Used by the Python API converters
+  forceOCR?: boolean; // Used by the Python API converters
   paginate?: boolean;
-  // New Datalab API parameters
   maxPages?: number;
-  stripExistingOCR?: boolean;
-  useLLM?: boolean;
   skipCache?: boolean;
+  // Datalab conversion options (https://documentation.datalab.to/api-reference/convert-document)
+  mode?: 'fast' | 'balanced' | 'accurate';
+  pageRange?: string;
+  mergeCrossPage?: boolean;
+  keepPageHeaderInOutput?: boolean;
+  keepPageFooterInOutput?: boolean;
+  trackChanges?: boolean;
+  chartUnderstanding?: boolean;
+  extractLinks?: boolean;
+  newBlockTypes?: boolean;
+  extractBookmarks?: boolean;
+  infographic?: boolean;
+  disableImageExtraction?: boolean;
+  disableImageCaptions?: boolean;
+  addBlockIds?: boolean;
+  tokenEfficientMarkdown?: boolean;
+  fenceSyntheticCaptions?: boolean;
+  wordBBoxes?: boolean;
+  tableCellBBoxes?: boolean;
+  listItemBBoxes?: boolean;
+  runEval?: boolean;
+  evalRubricId?: number;
+  saveCheckpoint?: boolean;
+  saveHtmlOutput?: boolean;
+  disableHtmlPrettify?: boolean;
   // MistralAI parameters
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
   deleteFileFromMistralaiAfterConversion?: boolean;
+  // OpenAI compatible API parameters
+  openaiBaseUrl?: string;
+  openaiApiKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to openaiApiKeySecret */
+  openaiApiKey?: string;
+  openaiModel?: string;
+  openaiInputMode?: string; // 'images' renders pages, 'pdf' sends the file
+  openaiPagesPerRequest?: number;
+  openaiConcurrency?: number;
+  openaiRenderScale?: number;
+  openaiExtractImages?: boolean;
+  openaiExtraParams?: string; // JSON merged into the request body
+  openaiSystemPrompt?: string;
+  openaiPromptRules?: PromptRule[];
+  // Mathpix parameters
+  mathpixAppId?: string;
+  mathpixAppKeySecret?: string;
+  /** @deprecated Plaintext key, migrated to mathpixAppKeySecret */
+  mathpixAppKey?: string;
+  mathpixOutputFormat?: string; // 'md' plain markdown, 'mmd' Mathpix Markdown
+  mathpixPageRanges?: string;
+  mathpixIncludeEquationTags?: boolean;
+  mathpixIncludeHyperlinks?: boolean;
+  mathpixDeleteAfterConversion?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
+  cliFormattingEnabled: false,
+  cliProvider: '',
+  cliTimeoutMinutes: 0,
+  cliSystemPrompt: DEFAULT_FORMAT_SYSTEM_PROMPT,
+  cliPromptRules: getDefaultFormatRules(),
   markerEndpoint: 'localhost:8000',
   pythonEndpoint: 'localhost:8001',
   createFolder: true,
@@ -38,21 +111,62 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   writeMetadata: false,
   movePDFtoFolder: false,
   createAssetSubfolder: true,
+  backupRawExtraction: false,
   apiEndpoint: 'selfhosted',
   apiKey: '',
-  datalabApiKey: '',
-  mistralaiApiKey: '',
+  datalabApiKeySecret: '',
+  mistralaiApiKeySecret: '',
   langs: 'en',
   forceOCR: false,
   paginate: false,
-  // Default values for new parameters
   maxPages: undefined,
-  stripExistingOCR: false,
-  useLLM: false,
   skipCache: false,
+  // Default Datalab conversion options
+  mode: 'balanced',
+  pageRange: '',
+  mergeCrossPage: false,
+  keepPageHeaderInOutput: false,
+  keepPageFooterInOutput: false,
+  trackChanges: false,
+  chartUnderstanding: false,
+  extractLinks: false,
+  newBlockTypes: false,
+  extractBookmarks: false,
+  infographic: false,
+  disableImageExtraction: false,
+  disableImageCaptions: false,
+  addBlockIds: false,
+  tokenEfficientMarkdown: false,
+  fenceSyntheticCaptions: false,
+  wordBBoxes: false,
+  tableCellBBoxes: false,
+  listItemBBoxes: false,
+  runEval: false,
+  evalRubricId: undefined,
+  saveCheckpoint: false,
+  saveHtmlOutput: false,
+  disableHtmlPrettify: false,
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
   deleteFileFromMistralaiAfterConversion: false,
+  openaiBaseUrl: 'https://api.openai.com/v1',
+  openaiApiKeySecret: '',
+  openaiModel: '',
+  openaiInputMode: 'images',
+  openaiPagesPerRequest: 1,
+  openaiConcurrency: 2,
+  openaiRenderScale: 2,
+  openaiExtractImages: false,
+  openaiExtraParams: '',
+  openaiSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+  openaiPromptRules: getDefaultPromptRules(),
+  mathpixAppId: '',
+  mathpixAppKeySecret: '',
+  mathpixOutputFormat: 'md',
+  mathpixPageRanges: '',
+  mathpixIncludeEquationTags: false,
+  mathpixIncludeHyperlinks: false,
+  mathpixDeleteAfterConversion: false,
 };
 
 export class MarkerSettingTab extends PluginSettingTab {
@@ -77,6 +191,8 @@ export class MarkerSettingTab extends PluginSettingTab {
           .addOption('python-local-api', 'Python Local API')
           .addOption('python-cloud-api', 'Python Cloud API')
           .addOption('mistralai', 'MistralAI')
+          .addOption('openai', 'OpenAI compatible')
+          .addOption('mathpix', 'Mathpix')
           .setValue(this.plugin.settings.apiEndpoint)
           .onChange(async (value) => {
             this.plugin.settings.apiEndpoint = value;
@@ -95,7 +211,8 @@ export class MarkerSettingTab extends PluginSettingTab {
         this.app,
         this.plugin.converter,
         this.plugin.settings,
-        async () => await this.plugin.saveSettings()
+        async () => await this.plugin.saveSettings(),
+        () => this.display()
       );
     }
 
@@ -138,6 +255,21 @@ export class MarkerSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.createAssetSubfolder)
           .onChange(async (value) => {
             this.plugin.settings.createAssetSubfolder = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // setting for keeping the pre-formatting extraction as a .backup file
+    new Setting(containerEl)
+      .setName('Keep raw extraction backup')
+      .setDesc(
+        'Save the unformatted extraction as “<name>.md.backup” in the assets folder.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.backupRawExtraction)
+          .onChange(async (value) => {
+            this.plugin.settings.backupRawExtraction = value;
             await this.plugin.saveSettings();
           })
       );
@@ -204,5 +336,9 @@ export class MarkerSettingTab extends PluginSettingTab {
     // Initialize settings state
     updateMovePDFSetting(this.plugin.settings.createFolder);
     updateWriteMetadataSetting(this.plugin.settings.extractContent);
+
+    // CLI formatting sits at the end because it is only needed when the user
+    // wants to post-process extractions with a local agent.
+    renderCliSettings(containerEl, this.plugin);
   }
 }

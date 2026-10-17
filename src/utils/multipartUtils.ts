@@ -69,6 +69,20 @@ export class MarkerMultipartRequest {
       case 'pptx':
       case 'ppt':
         return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'odt':
+        return 'application/vnd.oasis.opendocument.text';
+      case 'wpd':
+        return 'application/vnd.wordperfect';
+      case 'epub':
+        return 'application/epub+zip';
+      case 'azw':
+      case 'azw3':
+      case 'kfx':
+        return 'application/vnd.amazon.ebook';
+      case 'mobi':
+        return 'application/x-mobipocket-ebook';
+      case 'djvu':
+        return 'image/vnd.djvu';
       case 'jpg':
       case 'jpeg':
         return 'image/jpeg';

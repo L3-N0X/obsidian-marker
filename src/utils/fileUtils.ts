@@ -1,214 +1,63 @@
-import { App, Notice, TFile, TFolder, base64ToArrayBuffer } from 'obsidian';
-import { MarkerSettings } from '../settings';
+import { App, TFile, TFolder, base64ToArrayBuffer, arrayBufferToBase64 } from 'obsidian';
 import { MarkerOkayCancelDialog } from '../modals';
+import type { OutputStore } from '../cli/publication';
+import type { Artifact, PreparedConversion } from '../cli/types';
 
-export async function getConversionFolderPath(
-  file: TFile,
-  existingPath?: string
-): Promise<string> {
-  // If a path is provided, use it directly
-  const folderPath = existingPath || calculateFolderPath(file);
-
-  return folderPath;
+export async function getConversionFolderPath(file: TFile): Promise<string> {
+  const folderName = file.name.replace(/\.[^.]+$/, '').replace(/\./g, '-');
+  return folderName ? file.path.replace(/[^/]+$/, `${folderName}/`) : '';
 }
 
-// Helper function to calculate the folder path
-function calculateFolderPath(file: TFile): string {
-  const folderName = file.path
-    .replace(/\.pdf(?=[^.]*$)/, '')
-    .split('/')
-    .pop()
-    ?.replace(/\./g, '-');
-
-  if (!folderName) {
-    return '';
-  }
-
-  const folderPath =
-    file.path
-      .replace(/\.pdf(?=[^.]*$)/, '/')
-      .split('/')
-      .slice(0, -1)
-      .join('/') + '/';
-
-  return folderPath;
-}
-
-export async function createConversionFolder(
-  app: App,
-  folderPath: string
-): Promise<string> {
-  const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (!(folder instanceof TFolder)) {
-    await app.vault.createFolder(folderPath);
-  }
-  return folderPath;
-}
-
-export async function checkForExistingFiles(
-  app: App,
-  folderPath: string
-): Promise<boolean> {
-  const existingFiles = app.vault
-    .getFiles()
-    .filter((file: { path: string }) => file.path.startsWith(folderPath));
-  if (existingFiles.length > 0) {
-    return new Promise((resolve) => {
-      new MarkerOkayCancelDialog(
-        app,
-        'Existing files found',
-        'Some files already exist in the target folder. Do you want to overwrite them / integrate the new files into this folder?',
-        resolve
-      ).open();
-    });
-  }
-  return true;
-}
-
-export async function createImageFiles(
-  app: App,
-  settings: MarkerSettings,
-  images: { [key: string]: string },
-  folderPath: string,
-  originalFile: TFile
-) {
-  const totalImages = Object.keys(images).length;
-  let processedImages = 0;
-
-  for (const [imageName, imageBase64] of Object.entries(images)) {
-    try {
-      let newImageName = imageName;
-      if (settings.createAssetSubfolder) {
-        newImageName =
-          originalFile.name.replace(/\.pdf(?=[^.]*$)/, '_') + imageName;
-      }
-      const imageArrayBuffer = base64ToArrayBuffer(imageBase64);
-      // check if image already exists, if so, overwrite it
-      if (
-        app.vault.getAbstractFileByPath(folderPath + newImageName) instanceof
-        TFile
-      ) {
-        const file = app.vault.getAbstractFileByPath(folderPath + newImageName);
-        if (!(file instanceof TFile)) {
-          console.error(
-            `Invalid file reference for image: ${newImageName}`,
-            file
-          );
-          continue;
-        }
-        await app.vault.modifyBinary(file, imageArrayBuffer);
-      } else {
-        await app.vault.createBinary(
-          folderPath + newImageName,
-          imageArrayBuffer
-        );
-      }
-      processedImages++;
-    } catch (error) {
-      console.error(
-        `Failed to process image ${imageName}:`,
-        error.message,
-        error.stack
-      );
-    }
-  }
-
-  if (processedImages === totalImages) {
-    new Notice(`${totalImages} image files created successfully`);
-  } else {
-    new Notice(
-      `${processedImages} of ${totalImages} image files created (some failed)`
-    );
-  }
-}
-
-export async function createMarkdownFile(
-  app: App,
-  settings: MarkerSettings,
-  markdown: string,
-  folderPath: string,
-  originalFile: TFile
-) {
-  const fileName = originalFile.name.split('.')[0] + '.md';
-  const filePath = folderPath + fileName;
-  let file: TFile;
-
-  // change markdown image links when asset subfolder is created
-  if (settings.createAssetSubfolder) {
-    const cleanImagePath = originalFile.name
-      .replace(/\.pdf(?=[^.]*$)/, '_')
-      .replace(/\s+/g, '%20');
-
-    markdown = markdown.replace(
-      /!\[.*\]\((.*)\)/g,
-      `![$1](assets/${cleanImagePath}$1)`
-    );
-  }
-  // remove images when only text is extracted
-  if (settings.extractContent === 'text') {
-    markdown = markdown.replace(/!\[.*\]\(.*\)/g, '');
-  }
-
-  const existingFile = app.vault.getAbstractFileByPath(filePath);
-  if (existingFile instanceof TFile) {
-    file = existingFile;
-    await app.vault.modify(file, markdown);
-  } else {
-    file = await app.vault.create(filePath, markdown);
-  }
-  new Notice(`Markdown file created: ${fileName}`);
-  app.workspace.openLinkText(file.path, '', true);
-}
-
-export async function addMetadataToMarkdownFile(
-  app: App,
-  metadata: { [key: string]: any },
-  folderPath: string,
-  originalFile: TFile
-) {
-  const fileName = originalFile.name.split('.')[0] + '.md';
-  const filePath = folderPath + fileName;
-  const file = app.vault.getAbstractFileByPath(filePath);
-  if (file instanceof TFile) {
-    // use the processFrontMatter function to add the metadata to the markdown file
-    const frontmatter = generateFrontmatter(metadata);
-    await app.fileManager
-      .processFrontMatter(file, (fm: any) => {
-        return frontmatter + fm;
-      })
-      .catch((error: any) => {
-        console.error('Error adding metadata to markdown file:', error);
+export function confirmOverwrite(app: App, prepared: PreparedConversion, signal?: AbortSignal): Promise<boolean> {
+  if (signal?.aborted) return Promise.resolve(false);
+  if (!Object.keys(prepared.files).some(path => app.vault.getAbstractFileByPath(path))) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const dialog = new MarkerOkayCancelDialog(app, 'Existing files found',
+      'Conversion output already exists. Overwrite these files with this conversion?', result => {
+        signal?.removeEventListener('abort', abort); resolve(result);
       });
-  }
+    const abort = (): void => dialog.close();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) { signal.removeEventListener('abort', abort); resolve(false); }
+    else dialog.open();
+  });
 }
 
-function generateFrontmatter(metadata: { [key: string]: any }): string {
-  let frontmatter = '---\n';
-  const frontmatterKeys = ['languages', 'filetype', 'ocr_stats', 'block_stats'];
-  for (const [key, value] of Object.entries(metadata)) {
-    if (frontmatterKeys.includes(key)) {
-      if (key === 'ocr_stats' || key === 'block_stats') {
-        for (const [k, v] of Object.entries(value)) {
-          frontmatter += `${k}: ${
-            k === 'equations'
-              ? JSON.stringify(v).slice(1, -1).replace(/"/g, '')
-              : v
-          }\n`;
-        }
-      } else {
-        frontmatter += `${key}: ${value}\n`;
-      }
+export function vaultOutputStore(app: App): OutputStore {
+  async function ensureParents(path: string): Promise<void> {
+    const parts = path.split('/').slice(0, -1);
+    let parent = '';
+    for (const part of parts) {
+      parent = parent ? parent + '/' + part : part;
+      const existing = app.vault.getAbstractFileByPath(parent);
+      if (existing && !(existing instanceof TFolder)) throw new Error('Output folder is occupied by a file');
+      if (!existing) await app.vault.createFolder(parent);
     }
   }
-  frontmatter += '---\n';
-  return frontmatter;
-}
-
-export async function deleteOriginalFile(app: App, file: TFile) {
-  try {
-    await app.fileManager.trashFile(file);
-    new Notice('Original PDF file deleted');
-  } catch (error) {
-    console.error('Error deleting original file:', error);
-  }
+  return {
+    async read(path: string, binary: boolean): Promise<Artifact | null> {
+      const file = app.vault.getAbstractFileByPath(path);
+      if (!file) {
+        if (await app.vault.adapter.exists(path)) throw new Error('Destination is not yet indexed by Obsidian');
+        return null;
+      }
+      if (!(file instanceof TFile)) throw new Error('Output path is occupied by a folder');
+      return { binary, content: binary ? arrayBufferToBase64(await app.vault.readBinary(file)) : await app.vault.read(file) };
+    },
+    async write(path: string, artifact: Artifact): Promise<void> {
+      await ensureParents(path);
+      const file = app.vault.getAbstractFileByPath(path);
+      if (file && !(file instanceof TFile)) throw new Error('Output path is occupied by a folder');
+      if (artifact.binary) {
+        const bytes = base64ToArrayBuffer(artifact.content);
+        if (file instanceof TFile) await app.vault.modifyBinary(file, bytes);
+        else await app.vault.createBinary(path, bytes);
+      } else if (file instanceof TFile) await app.vault.modify(file, artifact.content);
+      else await app.vault.create(path, artifact.content);
+    },
+    async remove(path: string): Promise<void> {
+      const file = app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) await app.vault.delete(file);
+    },
+  };
 }

@@ -1,4 +1,4 @@
-import { App, Setting } from 'obsidian';
+import { App, SecretComponent, Setting } from 'obsidian';
 import { MarkerSettings } from '../settings';
 import { Converter } from '../converter';
 
@@ -6,14 +6,19 @@ import { Converter } from '../converter';
 export interface ConverterSettingDefinition {
   id: string;
   name: string;
-  description: string;
-  type: 'text' | 'toggle' | 'dropdown';
+  description: string | ((settings: MarkerSettings) => string);
+  type: 'text' | 'secret' | 'toggle' | 'dropdown' | 'heading' | 'button';
   defaultValue: any;
   placeholder?: string;
   options?: { value: string; label: string }[];
   onChange?: (value: any, settings: MarkerSettings) => Promise<void> | void;
   buttonText?: string;
-  buttonAction?: (app: App, settings: MarkerSettings) => Promise<void> | void;
+  buttonAction?: (
+    app: App,
+    settings: MarkerSettings,
+    saveSettings: () => Promise<void>,
+    refresh?: () => void
+  ) => Promise<void> | void;
 }
 
 // Function to create a setting based on its definition
@@ -22,13 +27,22 @@ export function createConverterSetting(
   app: App,
   definition: ConverterSettingDefinition,
   settings: MarkerSettings,
-  saveSettings: () => Promise<void>
+  saveSettings: () => Promise<void>,
+  refresh?: () => void
 ): Setting {
+  const description =
+    typeof definition.description === 'function'
+      ? definition.description(settings)
+      : definition.description;
   const setting = new Setting(containerEl)
     .setName(definition.name)
-    .setDesc(definition.description);
+    .setDesc(description);
 
   switch (definition.type) {
+    case 'heading':
+      setting.setHeading();
+      break;
+
     case 'text':
       setting.addText((text) => {
         text
@@ -44,6 +58,24 @@ export function createConverterSetting(
             await saveSettings();
           });
       });
+      break;
+
+    case 'secret':
+      // Stores the name of a secret from Obsidian's secret storage, not the value
+      setting.addComponent((el) =>
+        new SecretComponent(app, el)
+          .setValue(
+            settings[definition.id as keyof MarkerSettings]?.toString() || ''
+          )
+          .onChange(async (value) => {
+            (settings[definition.id as keyof MarkerSettings] as any) =
+              value ?? '';
+            if (definition.onChange) {
+              await definition.onChange(value ?? '', settings);
+            }
+            await saveSettings();
+          })
+      );
       break;
 
     case 'toggle':
@@ -88,7 +120,7 @@ export function createConverterSetting(
     setting.addButton((button) => {
       button.setButtonText(definition.buttonText || '').onClick(() => {
         if (definition.buttonAction) {
-          definition.buttonAction(app, settings);
+          definition.buttonAction(app, settings, saveSettings, refresh);
         }
       });
     });
@@ -103,10 +135,17 @@ export function renderConverterSettings(
   app: App,
   converter: Converter,
   settings: MarkerSettings,
-  saveSettings: () => Promise<void>
+  saveSettings: () => Promise<void>,
+  refresh?: () => void
 ): void {
+  // Converters can render a fully custom settings UI
+  if (converter.renderSettings) {
+    converter.renderSettings(containerEl, settings, saveSettings);
+    return;
+  }
+
   // Get settings definitions from the converter
-  const settingDefinitions = converter.getConverterSettings();
+  const settingDefinitions = converter.getConverterSettings?.() ?? [];
 
   // Render each setting
   settingDefinitions.forEach((definition) => {
@@ -115,7 +154,8 @@ export function renderConverterSettings(
       app,
       definition,
       settings,
-      saveSettings
+      saveSettings,
+      refresh
     );
   });
 }

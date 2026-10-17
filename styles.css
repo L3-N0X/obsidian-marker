@@ -1,8 +1,298 @@
-/*
+/* System prompt editor (OpenAI compatible provider) */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.marker-prompt-modal {
+  width: min(820px, 92vw);
+}
 
-If your plugin does not need CSS, delete this file.
+.marker-prompt-intro {
+  width: 100%;
+  resize: vertical;
+}
 
-*/
+.marker-prompt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-4);
+}
+
+.marker-prompt-actions {
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.marker-prompt-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+
+.marker-prompt-rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+}
+
+.marker-prompt-rule.is-disabled .marker-prompt-rule-name,
+.marker-prompt-rule.is-disabled .marker-prompt-rule-content,
+.marker-prompt-rule.is-disabled select {
+  opacity: 0.5;
+}
+
+.marker-prompt-rule-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.marker-prompt-rule-name {
+  flex: 1 1 160px;
+  font-weight: var(--font-semibold);
+}
+
+.marker-prompt-rule-content {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.marker-prompt-empty {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.marker-prompt-preview {
+  margin-top: var(--size-4-4);
+}
+
+.marker-prompt-preview summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.marker-prompt-preview pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: var(--font-ui-smaller);
+  padding: var(--size-4-2);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary-alt);
+}
+
+/* Compact playground-style Datalab settings */
+.marker-compact {
+  margin: 0.25em 0 1em;
+  padding: 0.9em 1em;
+  background: var(--setting-items-background, var(--background-secondary));
+  border-radius: var(--radius-m, 8px);
+}
+
+.marker-compact-api {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.9em;
+}
+
+.marker-compact-api input {
+  flex: 1;
+}
+
+.marker-compact-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75em 1.5em;
+  margin-bottom: 0.9em;
+}
+
+.marker-compact-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  min-width: 0;
+}
+
+.marker-compact-field-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+.marker-compact-field-label {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.marker-compact-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-compact-field input {
+  width: 100%;
+}
+
+.marker-compact-mode {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  margin-top: 0.25em;
+}
+
+.marker-compact-mode button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1em;
+  padding: 0.45em 0.5em;
+  border: none;
+  border-right: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  height: auto;
+  line-height: 1.2;
+}
+
+.marker-compact-mode button:last-child {
+  border-right: none;
+}
+
+.marker-compact-mode button.is-active {
+  background: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+  color: var(--interactive-accent);
+}
+
+.marker-compact-mode-price {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.marker-compact-section {
+  margin-top: 1.1em;
+}
+
+.marker-compact-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  border-bottom: 1px dashed var(--background-modifier-border);
+  padding-bottom: 0.25em;
+  margin-bottom: 0.45em;
+}
+
+.marker-compact-section-title {
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.marker-compact-section-status {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.marker-compact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15em 2em;
+}
+
+.marker-compact-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.2em 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.marker-compact-check input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.marker-compact-check-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.marker-compact-info {
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  cursor: help;
+}
+
+.marker-compact-cost {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.marker-compact-badge {
+  flex: 0 0 auto;
+  padding: 0 0.3em;
+  border: 1px solid var(--interactive-accent);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  color: var(--interactive-accent);
+}
+
+.marker-compact-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.marker-compact-inline-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .marker-compact-fields,
+  .marker-compact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* CLI formatter settings and job controls. */
+.marker-cli-detection {
+  margin: 0.2em 0 0.6em;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.marker-cli-advanced { margin-top: 0.8em; }
+.marker-cli-advanced > summary {
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+}
+.marker-job-status { cursor: pointer; }
