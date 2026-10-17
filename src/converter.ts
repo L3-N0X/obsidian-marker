@@ -1,9 +1,10 @@
-import { App, Notice, TFile, TFolder } from 'obsidian';
+import { App, Notice, TFile, parseYaml, stringifyYaml } from 'obsidian';
 import { MarkerSettings } from './settings';
 import { ConverterSettingDefinition } from './utils/converterSettingsUtils';
 
 export interface ConversionResult {
   markdown?: string;
+  html?: string;
   images?: { [key: string]: string };
   metadata?: { [key: string]: any };
   success: boolean;
@@ -13,22 +14,23 @@ export interface ConversionResult {
 export interface Converter {
   convert(app: App, settings: MarkerSettings, file: TFile): Promise<boolean>;
   testConnection(settings: MarkerSettings, silent?: boolean): Promise<boolean>;
-  getConverterSettings(): ConverterSettingDefinition[]; // New method
+  getConverterSettings?(): ConverterSettingDefinition[];
+  renderSettings?(
+    containerEl: HTMLElement,
+    settings: MarkerSettings,
+    saveSettings: () => Promise<void>
+  ): void;
 }
 
-import {
-  addMetadataToMarkdownFile,
-  createConversionFolder,
-  createImageFiles,
-  createMarkdownFile,
-  deleteOriginalFile,
-  getConversionFolderPath,
-} from './utils/fileUtils';
+import { getConversionFolderPath } from './utils/fileUtils';
 import { checkSettings } from './utils/settingsUtils';
 import { getSecretValue } from './utils/secretUtils';
+import { prepareArtifacts } from './cli/content';
+import { FormattingPipeline } from './cli/jobs';
 
 export abstract class BaseConverter implements Converter {
-  constructor(protected app: App) {}
+  constructor(protected app: App, protected pipeline: FormattingPipeline) {}
+  private sources = new WeakMap<TFile, { path: string; name: string; basename: string; mtime: number; size: number }>();
 
   /** Resolves a secret name from the settings to its value on this device */
   protected getSecret(secretName?: string): string {
@@ -46,12 +48,14 @@ export abstract class BaseConverter implements Converter {
     silent?: boolean
   ): Promise<boolean>;
 
-  abstract getConverterSettings(): ConverterSettingDefinition[];
+  // Subclasses provide either getConverterSettings (generic rows) or
+  // renderSettings (custom UI)
 
   protected async prepareConversion(
     settings: MarkerSettings,
     file: TFile
   ): Promise<string | null> {
+    this.sources.set(file, { path: file.path, name: file.name, basename: file.basename, mtime: file.stat.mtime, size: file.stat.size });
     if (!checkSettings(settings)) {
       return null;
     }
@@ -65,95 +69,27 @@ export abstract class BaseConverter implements Converter {
   }
 
   protected async processConversionResult(
-    app: App,
     settings: MarkerSettings,
     data: ConversionResult,
     folderPath: string,
     originalFile: TFile
-  ) {
+  ): Promise<boolean> {
     try {
-      if (!data || !data.success) {
-        new Notice(`Conversion failed: ${data?.error || 'Unknown error'}`);
-        return;
-      }
-
-      await createConversionFolder(app, folderPath);
-
-      // Process content based on settings
-      if (settings.extractContent !== 'images' && data.markdown) {
-        await createMarkdownFile(
-          app,
-          settings,
-          data.markdown,
-          folderPath,
-          originalFile
-        );
-      }
-
-      if (
-        settings.extractContent !== 'text' &&
-        data.images &&
-        Object.keys(data.images).length > 0
-      ) {
-        let imageFolderPath = folderPath;
-        if (settings.createAssetSubfolder) {
-          if (
-            !(
-              app.vault.getAbstractFileByPath(folderPath + 'assets') instanceof
-              TFolder
-            )
-          ) {
-            await app.vault.createFolder(folderPath + 'assets/');
-          }
-          imageFolderPath += 'assets/';
-        }
-        await createImageFiles(
-          app,
-          settings,
-          data.images,
-          imageFolderPath,
-          originalFile
-        );
-      }
-
-      // Process metadata if requested
-      if (settings.writeMetadata && data.metadata) {
-        await addMetadataToMarkdownFile(
-          app,
-          data.metadata,
-          folderPath,
-          originalFile
-        );
-      }
-
-      // Handle original file based on settings
-      if (settings.movePDFtoFolder) {
-        try {
-          const newFilePath = folderPath + originalFile.name;
-          await app.vault.rename(originalFile, newFilePath);
-        } catch (error) {
-          console.error(
-            `Failed to move original file to folder: ${error.message}`,
-            error
-          );
-          new Notice('Error: Failed to move original file to target folder');
-        }
-      }
-
-      if (settings.deleteOriginal) {
-        await deleteOriginalFile(app, originalFile);
-      }
+      const source = this.sources.get(originalFile);
+      const prepared = prepareArtifacts(data, settings, source || originalFile, folderPath, {
+        parse: parseYaml, stringify: stringifyYaml,
+      });
+      if (source) { prepared.sourceMtime = source.mtime; prepared.sourceSize = source.size; }
+      const outcome = await this.pipeline.process({ prepared, formatting: {
+        cliFormattingEnabled: settings.cliFormattingEnabled,
+        cliProvider: settings.cliProvider,
+        cliPromptOverride: settings.cliPromptOverride,
+        cliTimeoutMinutes: settings.cliTimeoutMinutes,
+      } });
+      return outcome === 'formatted' || outcome === 'raw';
     } catch (error) {
-      console.error(
-        'Failed to process conversion result:',
-        error.message,
-        error.stack
-      );
-      new Notice(
-        `Error: Failed to process conversion result - ${
-          error.message || 'Unknown error'
-        }`
-      );
+      new Notice(`Conversion failed: ${error.message || 'Unknown error'}`);
+      return false;
     }
   }
 }

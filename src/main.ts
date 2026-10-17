@@ -1,4 +1,4 @@
-import { Plugin, TFile, Menu } from 'obsidian';
+import { Plugin, TFile, Menu, Notice, Platform } from 'obsidian';
 import { MarkerSettings, DEFAULT_SETTINGS, MarkerSettingTab } from './settings';
 import { Converter } from './converter';
 import { DatalabConverter } from './converters/datalabConverter';
@@ -13,13 +13,55 @@ import {
 } from './converters/mathpixConverter';
 import { getDefaultPromptRules } from './utils/promptUtils';
 import { migrateKeysToSecretStorage } from './utils/secretUtils';
+import { FormattingPipeline } from './cli/jobs';
+import { CLI_PROVIDERS, CliProvider, JobProgress, PreparedConversion, ProcessingOutcome } from './cli/types';
+import { vaultOutputStore, confirmOverwrite } from './utils/fileUtils';
+import { ConversionJobsModal } from './cli/ui';
 
 export default class Marker extends Plugin {
   settings: MarkerSettings;
   converter: Converter;
+  pipeline: FormattingPipeline;
+  cliPathOverrides: Partial<Record<CliProvider, string>> = {};
+  private stopped = false;
+  private extracting = new Set<string>();
+  private statusBar?: HTMLElement;
+  private jobsListeners = new Set<() => void>();
+  private settingsWrites: Promise<void> = Promise.resolve();
+
+  get isDesktop(): boolean { return Platform.isDesktopApp; }
+
+  private get deviceKey(): string {
+    return `marker-api:cli-paths:${this.vaultIdentity}`;
+  }
+
+  private get vaultIdentity(): string {
+    const adapter = this.app.vault.adapter as { getBasePath?: () => string };
+    return this.isDesktop && typeof adapter.getBasePath === 'function' ? adapter.getBasePath() : this.app.vault.getName();
+  }
 
   async onload() {
     await this.loadSettings();
+    if (this.isDesktop) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(this.deviceKey) || '{}');
+        if (saved && typeof saved === 'object') for (const provider of CLI_PROVIDERS) {
+          if (typeof saved[provider] === 'string') this.cliPathOverrides[provider] = saved[provider];
+        }
+      } catch { this.cliPathOverrides = {}; }
+      this.statusBar = this.addStatusBarItem();
+      this.statusBar.addClass('marker-job-status');
+      this.statusBar.onclick = () => this.openJobs();
+    }
+    this.pipeline = new FormattingPipeline({
+      store: vaultOutputStore(this.app),
+      confirmOverwrite: (prepared, signal) => confirmOverwrite(this.app, prepared, signal),
+      complete: (prepared, outcome, recovered, signal) => this.completeConversion(prepared, outcome, recovered, signal),
+      progress: jobs => this.showProgress(jobs),
+      notify: message => { if (!this.stopped) new Notice(message, 8000); },
+    }, this.isDesktop, this.vaultIdentity);
+    this.pipeline.detector.invalidate(this.cliPathOverrides);
+    void this.pipeline.initialize().catch(() => new Notice('Could not initialize conversion recovery. Check access to the OS temporary directory.'));
     this.setConverter(); // Instantiate converter based on settings
     this.addCommands();
     this.addSettingTab(new MarkerSettingTab(this.app, this));
@@ -29,30 +71,30 @@ export default class Marker extends Plugin {
   private setConverter() {
     switch (this.settings.apiEndpoint) {
       case 'datalab':
-        this.converter = new DatalabConverter(this.app);
+        this.converter = new DatalabConverter(this.app, this.pipeline);
         break;
       case 'selfhosted':
-        this.converter = new MarkerApiDockerConverter(this.app);
+        this.converter = new MarkerApiDockerConverter(this.app, this.pipeline);
         break;
       case 'python-local-api':
-        this.converter = new PythonLocalAPIConverter(this.app);
+        this.converter = new PythonLocalAPIConverter(this.app, this.pipeline);
         break;
       case 'python-cloud-api':
-        this.converter = new PythonCloudAPIConverter(this.app);
+        this.converter = new PythonCloudAPIConverter(this.app, this.pipeline);
         break;
       case 'mistralai':
-        this.converter = new MistralAIConverter(this.app);
+        this.converter = new MistralAIConverter(this.app, this.pipeline);
         break;
       case 'openai':
-        this.converter = new OpenAICompatibleConverter(this.app);
+        this.converter = new OpenAICompatibleConverter(this.app, this.pipeline);
         break;
       case 'mathpix':
-        this.converter = new MathpixConverter(this.app);
+        this.converter = new MathpixConverter(this.app, this.pipeline);
         break;
       default:
         console.error('Invalid API endpoint setting.');
         // Default to selfhosted if invalid setting
-        this.converter = new MarkerApiDockerConverter(this.app);
+        this.converter = new MarkerApiDockerConverter(this.app, this.pipeline);
     }
   }
 
@@ -83,9 +125,7 @@ export default class Marker extends Plugin {
           item.setTitle('Convert ' + pdfFiles.length + ' files to MD');
           item.setSection('action');
           item.onClick(async (): Promise<void> => {
-            for (const file of pdfFiles) {
-              await this.convertFile(file);
-            }
+            await Promise.all(pdfFiles.map((file) => this.convertFile(file)));
           });
         });
       })
@@ -107,14 +147,20 @@ export default class Marker extends Plugin {
   }
 
   private async convertFile(file: TFile) {
+    if (this.stopped) return;
+    const path = file.path;
+    if (this.extracting.has(path)) { new Notice('This file is already being converted.'); return; }
     if (this.converter) {
-      await this.converter.convert(this.app, this.settings, file);
+      this.extracting.add(path);
+      try { await this.converter.convert(this.app, { ...this.settings }, file); }
+      finally { this.extracting.delete(path); }
     } else {
       console.error('No converter initialized.');
     }
   }
 
   private addCommands() {
+    this.addCommand({ id: 'marker-conversion-jobs', name: 'Recover conversions / view active jobs', callback: () => this.openJobs() });
     this.addCommand({
       id: 'marker-convert-to-md',
       name: 'Convert to MD',
@@ -129,7 +175,57 @@ export default class Marker extends Plugin {
     });
   }
 
-  async onunload() {}
+  async onunload() {
+    this.stopped = true;
+    this.pipeline?.dispose();
+    this.jobsListeners.clear();
+  }
+
+  openJobs(): void { new ConversionJobsModal(this.app, this).open(); }
+
+  subscribeJobs(listener: () => void): () => void {
+    this.jobsListeners.add(listener);
+    return () => this.jobsListeners.delete(listener);
+  }
+
+  private showProgress(jobs: JobProgress[]): void {
+    if (this.stopped) return;
+    const job = jobs.find(entry => entry.stage !== 'Queued') || jobs[0];
+    this.statusBar?.setText(job ? `OCR-AI: ${job.stage} (${jobs.length})` : '');
+    for (const listener of this.jobsListeners) listener();
+  }
+
+  async saveCliPath(provider: CliProvider, value: string): Promise<void> {
+    if (!this.isDesktop) return;
+    if (value.trim()) this.cliPathOverrides[provider] = value.trim();
+    else delete this.cliPathOverrides[provider];
+    localStorage.setItem(this.deviceKey, JSON.stringify(this.cliPathOverrides));
+    this.pipeline.detector.invalidate(this.cliPathOverrides);
+  }
+
+  private async completeConversion(prepared: PreparedConversion, outcome: ProcessingOutcome, recovered: boolean, signal: AbortSignal): Promise<void> {
+    if (this.stopped || signal.aborted) return;
+    if (!recovered) {
+      const source = this.app.vault.getAbstractFileByPath(prepared.originalPath);
+      if (source instanceof TFile) {
+        if (prepared.sourceMtime !== undefined &&
+          (source.stat.mtime !== prepared.sourceMtime || source.stat.size !== prepared.sourceSize)) {
+          new Notice('Output was saved. The source changed during conversion, so it was kept.');
+        } else {
+          try {
+            if (prepared.moveOriginal) await this.app.vault.rename(source, prepared.folderPath + prepared.originalName);
+            if (!this.stopped && !signal.aborted && prepared.deleteOriginal) await this.app.fileManager.trashFile(source);
+          } catch { new Notice('Output was saved, but the original could not be moved or deleted.'); }
+        }
+      }
+    }
+    if (this.stopped || signal.aborted) return;
+    new Notice(outcome === 'formatted' ? 'Conversion and CLI formatting completed' : 'Conversion completed');
+    if (prepared.markdownPath) {
+      try { await this.app.workspace.openLinkText(prepared.markdownPath, '', true); }
+      catch { new Notice('The note was saved but could not be opened automatically.'); }
+    }
+  }
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -138,6 +234,10 @@ export default class Marker extends Plugin {
       this.settings.openaiPromptRules ?? getDefaultPromptRules()
     ).map((rule) => ({ ...rule }));
     let migrated = migrateKeysToSecretStorage(this.app, this.settings);
+    this.settings.cliFormattingEnabled = this.settings.cliFormattingEnabled === true;
+    if (!CLI_PROVIDERS.includes(this.settings.cliProvider as CliProvider)) this.settings.cliProvider = '';
+    if (this.settings.cliPromptOverride !== null && typeof this.settings.cliPromptOverride !== 'string') this.settings.cliPromptOverride = null;
+    if (!Number.isFinite(this.settings.cliTimeoutMinutes) || this.settings.cliTimeoutMinutes < 0 || this.settings.cliTimeoutMinutes > 10080) this.settings.cliTimeoutMinutes = 0;
     if (this.settings.apiEndpoint === 'python-api') {
       this.settings.apiEndpoint = 'python-local-api';
       migrated = true;
@@ -148,7 +248,10 @@ export default class Marker extends Plugin {
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    const snapshot = { ...this.settings };
+    const write = this.settingsWrites.then(() => this.saveData(snapshot));
+    this.settingsWrites = write.catch(() => {});
+    await write;
     this.setConverter();
   }
 

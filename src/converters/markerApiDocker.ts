@@ -1,7 +1,7 @@
 import { App, Notice, TFile, requestUrl, RequestUrlParam } from 'obsidian';
 import { MarkerSettings } from './../settings';
 import { BaseConverter, ConversionResult } from './../converter';
-import { checkForExistingFiles } from '../utils/fileUtils';
+
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 import {MarkerMultipartRequest} from "../utils/multipartUtils";
 
@@ -45,14 +45,6 @@ export class MarkerApiDockerConverter extends BaseConverter {
     const folderPath = await this.prepareConversion(settings, file);
     if (!folderPath) return false;
 
-    if (
-      (settings.extractContent === 'images' ||
-        settings.extractContent === 'all') &&
-      !(await checkForExistingFiles(app, folderPath))
-    ) {
-      return true;
-    }
-
     new Notice(
       'Converting PDF to Markdown, this can take a few seconds...',
       10000
@@ -70,15 +62,12 @@ export class MarkerApiDockerConverter extends BaseConverter {
         return false;
       }
 
-      await this.processConversionResult(
-        app,
+      return await this.processConversionResult(
         settings,
         conversionResult,
         folderPath,
         file
       );
-      new Notice('PDF conversion completed successfully');
-      return true;
     } catch (conversionError) {
       console.error(
         'Docker API conversion failed:',

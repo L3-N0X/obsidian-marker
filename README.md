@@ -28,10 +28,26 @@ You can find the related repositories and services here:
 - **Formula Detection**: Accurately captures and converts mathematical formulas
 - **Table Extraction**: Preserves table structures in your Markdown output
 - **Image Handling**: Extracts and saves images from your PDFs and includes them in the markdown
+- **Full Datalab option coverage**: Processing modes (Fast/Balanced/Accurate), extras (track changes, chart understanding, infographics, links, bookmarks), cross-page merging, eval rubrics, bounding boxes and optional HTML output
 - **Batch Processing**: Convert multiple PDFs at once by selecting files with Alt + Click (Note: Processing multiple files may take considerable time depending on their size and complexity)
 - **Mobile Compatibility**: Works on both desktop and mobile Obsidian apps
 - **Flexible Output**: Choose between full content extraction or specific elements (text/images)
 - **Smart Folder Integration**: If a folder with the PDF's name already exists, the plugin will ask if you want to integrate the new files into the existing folder
+- **Optional CLI Formatting**: Format extracted Markdown with Codex, Claude, Antigravity, Cursor Agent, OpenCode, or Hermes before the completed note appears in your vault
+
+## CLI formatting
+
+On desktop, enable **Format after extraction** in the plugin settings and choose an installed agent. The plugin detects agent executables, including common installations outside Obsidian's desktop PATH. Sign in and select your model using the CLI as usual; the plugin uses that account and the CLI's default model without adding another API key or model setting.
+
+Every extraction provider uses the same formatting step. Each document is staged in its own OS temporary workspace with its attachments. The note is imported and opened after the agent finishes its edits and preservation review. Images-only extraction skips formatting. Optional HTML remains the extraction provider's original output.
+
+The editable prompt starts with the supplied Markdown formatting skill: preserve granular content, improve heading structure, standardize formatting, and remove only truly duplicated footnotes. **Reset prompt** restores the bundled baseline. The host adds the target filename, protected-content rules, review instructions, and completion-report contract. The original skill file does not need to remain installed.
+
+Formatting retries once from the original extraction. If both attempts fail, the plugin imports the untouched extraction and displays a failure notice. The source is kept even when automatic deletion is enabled. Output checks reject missing completion reports, empty documents, changed frontmatter, lost link targets, altered code/math blocks, and disappeared numeric values or unique words. These checks cannot guarantee complete semantic equivalence.
+
+Click the conversion status or run **OCR-AI: Recover conversions / view active jobs** to cancel a job or recover an interrupted conversion. Recovery offers **Retry**, **Import raw**, and **Discard**, and never restarts an agent automatically. Recovered imports keep their source files. Temporary recovery data lives outside the vault and can be removed by OS cleanup.
+
+**Advanced** includes an optional timeout (default `0`, wait until completion) and executable overrides saved only on the current device. Agents receive unattended workspace-edit permissions; global CLI configuration is not rewritten. A temporary working directory is not a security sandbox for every CLI. Extraction remains available on mobile, where subprocess formatting is unavailable.
 
 ## 🛠 Why This Plugin?
 
@@ -108,6 +124,7 @@ You can convert PDFs to Markdown in multiple ways:
 
 ## ⚙️ Settings
 
+### General
 
 | Setting                     | Default          | Description                                                                                                                                                |
 | ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -116,13 +133,14 @@ You can convert PDFs to Markdown in multiple ways:
 | **Python API Endpoint**     | 'localhost:8001' | The endpoint to use for the Python API. Only shown when 'Python Local API' or 'Python Cloud API' is selected as the API endpoint.                            |
 | **Datalab API Key**          | -                | Secret holding your Datalab API key. Only shown when 'Datalab' is selected as the API endpoint.                                                  |
 | **MistralAI API Key**       | -                | Secret holding your MistralAI API key. Only shown when 'MistralAI' is selected as the API endpoint.                                            |
-| **Languages**               | 'en'             | The languages to use if OCR is needed, separated by commas. Only shown when 'Datalab' is selected as the API endpoint.                                     |
-| **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown when 'Datalab' is selected as the API endpoint. |
-| **Paginate**                | `false`          | Add horizontal rules between each page. Available for both Datalab and MistralAI endpoints.                                                         |
+| **Languages**               | 'en'             | The languages to use if OCR is needed, separated by commas. Only shown for the Python API endpoints.                                     |
+| **Force OCR**               | `false`          | Force OCR (Activate this when auto-detect often fails, make sure to set the correct languages). Only shown for the Python API endpoints. |
+| **Paginate**                | `false`          | Add horizontal rules between each page. Available for Datalab, Python API and MistralAI endpoints.                                                         |
 | **Image Limit**             | `0`              | Maximum number of images to extract (0 for no limit). Only shown when 'MistralAI' is selected.                                                  |
 | **Image Minimum Size**      | `0`              | Minimum height and width of images to extract (0 for no minimum). Only shown when 'MistralAI' is selected.                                     |
 | **Move PDF to Folder**      | `false`          | Move the PDF to the folder after conversion.                                                        |
 | **Create Asset Subfolder**  | `true`           | Create an asset subfolder for images.                                                                                                                      |
+| **Keep Raw Extraction Backup** | `false`       | Save the unformatted extraction as `<name>.md.backup` in the assets folder, so CLI formatting never destroys the raw result (`<name>.md.backup` is ignored by Obsidian). |
 | **Extract Content**         | 'all'            | Select the content to extract from the PDF. Options: 'Extract everything', 'Text Only', 'Images Only'.                                                     |
 | **Write Metadata**          | `false`          | Write metadata as frontmatter in the Markdown file.                                                                                                        |
 | **Delete Original PDF**     | `false`          | Delete the original PDF after conversion.                                                                                                                  |
@@ -170,6 +188,38 @@ Besides PDFs, Mathpix also converts `docx`, `doc`, `pptx`, `odt`, `wpd`, `epub`,
 
 Images are downloaded from Mathpix and saved in your vault, math uses `$`/`$$` delimiters so Obsidian renders it.
 
+### Datalab conversion options
+
+These mirror the options of the [Datalab Convert API](https://documentation.datalab.to/docs/recipes/conversion/conversion-api-overview) and are only shown when 'Datalab' is selected as the API endpoint. Prices are the standard Datalab rates and can change.
+
+| Setting                     | Default          | Description                                                                                                                                                |
+| ----------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Mode**                    | 'balanced'       | Processing mode: 'Fast' ($4/1k pages), 'Balanced' ($4/1k pages, recommended) or 'Accurate' ($10/1k pages). |
+| **Page Range**              | -                | Comma-separated page ranges to process, e.g. `0-2,4` (0-indexed). Overrides maximum pages. For spreadsheets this filters by sheet index. |
+| **Maximum Pages**           | -                | Limit the number of pages to convert. Ignored when a page range is set. |
+| **Track Changes**           | `false`          | Extract tracked changes and comments from DOCX, PDF and image files (+$6/1k pages). |
+| **Chart Understanding**     | `false`          | Extract data from charts and graphs into structured output (+$3/1k pages). |
+| **Extract Links**           | `false`          | Preserve hyperlinks in the converted output. |
+| **New Block Types**         | `false`          | Use newer block types for improved layout and structure detection. |
+| **Extract Bookmarks**       | `false`          | Read the PDF's stored outline into `metadata.pdf_bookmarks` (useful together with 'Write Metadata'). |
+| **Infographic**             | `false`          | Reconstruct infographics and diagrams as structured content. |
+| **Run Eval**                | `false`          | Run an evaluation rubric after each conversion. |
+| **Eval Rubric ID**          | -                | ID of an active eval rubric owned by your Datalab team (created in the Datalab dashboard). |
+| **Merge Cross-page Content**| `false`          | Beta. Merge tables, paragraphs and lists split across pages. Adds a variable compute surcharge (~$0.50 per document). |
+| **Keep Page Header/Footer in Output** | `false` | Include page headers/footers in the converted output. |
+| **Disable Image Extraction**| `false`          | Don't extract images from the document (ignored when 'Extract Content' is set to 'Images Only'). |
+| **Disable Image Captions**  | `false`          | Disable synthetic image captions/descriptions in the output. |
+| **Add Block IDs**           | `false`          | Add `data-block-id` attributes to HTML elements for citation tracking (HTML output only). |
+| **Token-efficient Markdown**| `false`          | Optimize markdown for LLM token usage (compact tables, single-space indents). |
+| **Fence Synthetic Captions**| `false`          | Wrap synthetic image captions in HTML comment markers for easy removal. |
+| **Save HTML Output**        | `false`          | Also save the converted document as an `.html` file next to the markdown file. Required for block IDs and bounding boxes. |
+| **Disable HTML Prettify**   | `false`          | Return compact HTML without added indentation (only applies when saving HTML output). |
+| **Word BBoxes**             | `false`          | Inline per-word bounding boxes and confidence scores into HTML output ($3/1k pages). |
+| **Table Cell BBoxes**       | `false`          | Add per-cell bounding boxes to tables in HTML output (includes word bboxes, $6/1k pages). |
+| **List Item BBoxes**        | `false`          | Add per-item bounding boxes to lists in HTML output (includes word bboxes, $6/1k pages). |
+| **Skip Cache**              | `false`          | Force re-conversion and skip using cached results. |
+| **Save Checkpoint**         | `false`          | Save a checkpoint after conversion so it can be reused by other Datalab endpoints. |
+
 ## 🙏 Acknowledgements
 
 This plugin wouldn't be possible without the incredible work of:
@@ -185,7 +235,7 @@ A huge thank you to these projects for their contributions to the community!
 If you encounter issues related to the plugin itself, please open an issue in this repository. For problems with the conversion process or API, please refer to the Marker and Marker API repositories.
 
 > [!NOTE]
-> When converting multiple files at once, be patient as the process can take a significant amount of time depending on the size and complexity of your PDFs. For very large batches, consider processing them in smaller groups.
+> When converting multiple files at once they run in parallel, so several conversions progress at the same time. Large batches may still be limited by the API endpoint or your machine's resources.
 
 ## 🤝 Contributing
 

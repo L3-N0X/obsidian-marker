@@ -6,8 +6,10 @@ import {
   PromptRule,
   getDefaultPromptRules,
 } from './utils/promptUtils';
+import { FormattingSettings } from './cli/types';
+import { renderCliSettings } from './cli/ui';
 
-export interface MarkerSettings {
+export interface MarkerSettings extends FormattingSettings {
   markerEndpoint: string;
   pythonEndpoint: string;
   createFolder: boolean;
@@ -16,6 +18,7 @@ export interface MarkerSettings {
   writeMetadata: boolean;
   movePDFtoFolder: boolean;
   createAssetSubfolder: boolean;
+  backupRawExtraction: boolean;
   apiEndpoint: string;
   apiKey?: string; // Keep for backward compatibility and selfhosted/python-api
   // API keys are stored in Obsidian's secret storage, settings hold the secret names
@@ -25,14 +28,36 @@ export interface MarkerSettings {
   datalabApiKey?: string;
   /** @deprecated Plaintext key, migrated to mistralaiApiKeySecret */
   mistralaiApiKey?: string;
-  langs?: string;
-  forceOCR?: boolean;
+  langs?: string; // Used by the Python API converters
+  forceOCR?: boolean; // Used by the Python API converters
   paginate?: boolean;
-  // New Datalab API parameters
   maxPages?: number;
-  stripExistingOCR?: boolean;
-  useLLM?: boolean;
   skipCache?: boolean;
+  // Datalab conversion options (https://documentation.datalab.to/api-reference/convert-document)
+  mode?: 'fast' | 'balanced' | 'accurate';
+  pageRange?: string;
+  mergeCrossPage?: boolean;
+  keepPageHeaderInOutput?: boolean;
+  keepPageFooterInOutput?: boolean;
+  trackChanges?: boolean;
+  chartUnderstanding?: boolean;
+  extractLinks?: boolean;
+  newBlockTypes?: boolean;
+  extractBookmarks?: boolean;
+  infographic?: boolean;
+  disableImageExtraction?: boolean;
+  disableImageCaptions?: boolean;
+  addBlockIds?: boolean;
+  tokenEfficientMarkdown?: boolean;
+  fenceSyntheticCaptions?: boolean;
+  wordBBoxes?: boolean;
+  tableCellBBoxes?: boolean;
+  listItemBBoxes?: boolean;
+  runEval?: boolean;
+  evalRubricId?: number;
+  saveCheckpoint?: boolean;
+  saveHtmlOutput?: boolean;
+  disableHtmlPrettify?: boolean;
   // MistralAI parameters
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
@@ -64,6 +89,10 @@ export interface MarkerSettings {
 }
 
 export const DEFAULT_SETTINGS: MarkerSettings = {
+  cliFormattingEnabled: false,
+  cliProvider: '',
+  cliPromptOverride: null,
+  cliTimeoutMinutes: 0,
   markerEndpoint: 'localhost:8000',
   pythonEndpoint: 'localhost:8001',
   createFolder: true,
@@ -72,6 +101,7 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   writeMetadata: false,
   movePDFtoFolder: false,
   createAssetSubfolder: true,
+  backupRawExtraction: false,
   apiEndpoint: 'selfhosted',
   apiKey: '',
   datalabApiKeySecret: '',
@@ -79,11 +109,33 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   langs: 'en',
   forceOCR: false,
   paginate: false,
-  // Default values for new parameters
   maxPages: undefined,
-  stripExistingOCR: false,
-  useLLM: false,
   skipCache: false,
+  // Default Datalab conversion options
+  mode: 'balanced',
+  pageRange: '',
+  mergeCrossPage: false,
+  keepPageHeaderInOutput: false,
+  keepPageFooterInOutput: false,
+  trackChanges: false,
+  chartUnderstanding: false,
+  extractLinks: false,
+  newBlockTypes: false,
+  extractBookmarks: false,
+  infographic: false,
+  disableImageExtraction: false,
+  disableImageCaptions: false,
+  addBlockIds: false,
+  tokenEfficientMarkdown: false,
+  fenceSyntheticCaptions: false,
+  wordBBoxes: false,
+  tableCellBBoxes: false,
+  listItemBBoxes: false,
+  runEval: false,
+  evalRubricId: undefined,
+  saveCheckpoint: false,
+  saveHtmlOutput: false,
+  disableHtmlPrettify: false,
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
   deleteFileFromMistralaiAfterConversion: false,
@@ -197,6 +249,21 @@ export class MarkerSettingTab extends PluginSettingTab {
           })
       );
 
+    // setting for keeping the pre-formatting extraction as a .backup file
+    new Setting(containerEl)
+      .setName('Keep raw extraction backup')
+      .setDesc(
+        'Save the unformatted extraction as “<name>.md.backup” in the assets folder.'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.backupRawExtraction)
+          .onChange(async (value) => {
+            this.plugin.settings.backupRawExtraction = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // setting for which content to extract from the pdf
     new Setting(containerEl)
       .setName('Extract content')
@@ -259,5 +326,9 @@ export class MarkerSettingTab extends PluginSettingTab {
     // Initialize settings state
     updateMovePDFSetting(this.plugin.settings.createFolder);
     updateWriteMetadataSetting(this.plugin.settings.extractContent);
+
+    // CLI formatting sits at the end because it is only needed when the user
+    // wants to post-process extractions with a local agent.
+    renderCliSettings(containerEl, this.plugin);
   }
 }

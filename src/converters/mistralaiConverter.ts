@@ -3,7 +3,6 @@ import { Mistral } from '@mistralai/mistralai';
 import { MarkerSettings } from '../settings';
 import { BaseConverter, ConversionResult } from '../converter';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
-import { deleteOriginalFile, checkForExistingFiles } from '../utils/fileUtils';
 import { OCRPageObject } from '@mistralai/mistralai/models/components';
 
 export class MistralAIConverter extends BaseConverter {
@@ -14,14 +13,6 @@ export class MistralAIConverter extends BaseConverter {
   ): Promise<boolean> {
     const folderPath = await this.prepareConversion(settings, file);
     if (!folderPath) return false;
-
-    if (
-      (settings.extractContent === 'images' ||
-        settings.extractContent === 'all') &&
-      !(await checkForExistingFiles(app, folderPath))
-    ) {
-      return true;
-    }
 
     const apiKey = this.getSecret(settings.mistralaiApiKeySecret);
     if (!apiKey) {
@@ -93,21 +84,12 @@ export class MistralAIConverter extends BaseConverter {
       );
 
       // Process the conversion result
-      await this.processConversionResult(
-        app,
+      return await this.processConversionResult(
         settings,
         conversionResult,
         folderPath,
         file
       );
-
-      new Notice('MistralAI OCR conversion completed successfully');
-
-      if (settings.deleteOriginal) {
-        await deleteOriginalFile(app, file);
-      }
-
-      return true;
     } catch (error) {
       console.error('MistralAI conversion error:', error.message, error.stack);
       new Notice(

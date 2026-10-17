@@ -138,8 +138,14 @@ export function renderConverterSettings(
   saveSettings: () => Promise<void>,
   refresh?: () => void
 ): void {
+  // Converters can render a fully custom settings UI
+  if (converter.renderSettings) {
+    converter.renderSettings(containerEl, settings, saveSettings);
+    return;
+  }
+
   // Get settings definitions from the converter
-  const settingDefinitions = converter.getConverterSettings();
+  const settingDefinitions = converter.getConverterSettings?.() ?? [];
 
   // Render each setting
   settingDefinitions.forEach((definition) => {

@@ -8,7 +8,6 @@ import {
 } from 'obsidian';
 import { MarkerSettings } from '../settings';
 import { BaseConverter, ConversionResult } from '../converter';
-import { checkForExistingFiles } from '../utils/fileUtils';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 import { FormField, MarkerMultipartRequest } from '../utils/multipartUtils';
 
@@ -58,14 +57,6 @@ export class MathpixConverter extends BaseConverter {
     const folderPath = await this.prepareConversion(settings, file);
     if (!folderPath) return false;
 
-    if (
-      (settings.extractContent === 'images' ||
-        settings.extractContent === 'all') &&
-      !(await checkForExistingFiles(app, folderPath))
-    ) {
-      return true;
-    }
-
     new Notice('Converting file with Mathpix...', 4000);
 
     let pdfId: string | undefined;
@@ -102,16 +93,12 @@ export class MathpixConverter extends BaseConverter {
         },
       };
 
-      await this.processConversionResult(
-        app,
+      return await this.processConversionResult(
         settings,
         conversionResult,
         folderPath,
         file
       );
-
-      new Notice('Mathpix conversion completed successfully');
-      return true;
     } catch (error) {
       console.error('Mathpix conversion error:', error.message, error.stack);
       new Notice(

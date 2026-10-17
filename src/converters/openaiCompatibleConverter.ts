@@ -9,7 +9,6 @@ import {
 import { MarkerSettings } from '../settings';
 import { BaseConverter, ConversionResult } from '../converter';
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
-import { checkForExistingFiles } from '../utils/fileUtils';
 import {
   buildSystemPrompt,
   isImageExtractionEnabled,
@@ -44,14 +43,6 @@ export class OpenAICompatibleConverter extends BaseConverter {
     const folderPath = await this.prepareConversion(settings, file);
     if (!folderPath) return false;
 
-    if (
-      (settings.extractContent === 'images' ||
-        settings.extractContent === 'all') &&
-      !(await checkForExistingFiles(app, folderPath))
-    ) {
-      return true;
-    }
-
     let extraParams: Record<string, unknown>;
     try {
       extraParams = this.parseExtraParams(settings);
@@ -78,17 +69,14 @@ export class OpenAICompatibleConverter extends BaseConverter {
               progress
             );
 
-      await this.processConversionResult(
-        app,
+      // The pipeline may run CLI formatting for a while, so stop showing progress
+      progress.hide();
+      return await this.processConversionResult(
         settings,
         result,
         folderPath,
         file
       );
-      if (!result.success) return false;
-
-      new Notice('OpenAI compatible conversion completed successfully');
-      return true;
     } catch (error) {
       console.error(
         'OpenAI compatible conversion error:',

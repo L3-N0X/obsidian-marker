@@ -4,11 +4,10 @@ import {
   TFile,
   requestUrl,
   RequestUrlParam,
-  FileSystemAdapter,
 } from 'obsidian';
 import { MarkerSettings } from './../settings';
 import { BaseConverter, ConversionResult } from './../converter';
-import { deleteOriginalFile } from '../utils/fileUtils';
+
 import { ConverterSettingDefinition } from '../utils/converterSettingsUtils';
 import {FormField, MarkerMultipartRequest} from "../utils/multipartUtils";
 
@@ -139,26 +138,12 @@ export class PythonCloudAPIConverter extends BaseConverter {
         return false;
       }
 
-      await this.processConversionResult(
-        app,
+      return await this.processConversionResult(
         settings,
         conversionResult,
         folderPath,
         file
       );
-
-      new Notice('Conversion with Python API completed');
-
-      if (settings.movePDFtoFolder) {
-        const newFilePath = folderPath + file.name;
-        await app.vault.rename(file, newFilePath);
-      }
-
-      if (settings.deleteOriginal) {
-        await deleteOriginalFile(app, file);
-      }
-
-      return true;
     } catch (error) {
       console.error(
         'Python API conversion error:',
