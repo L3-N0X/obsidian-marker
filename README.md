@@ -252,3 +252,79 @@ Happy converting! 📚➡️📝
     <img src="https://api.star-history.com/svg?repos=l3-n0x/obsidian-marker&type=Date" alt="Star History Chart">
   </a>
 </p>
+
+### Additional AI providers and local inference (desktop)
+
+Select **AI provider (local / additional)** under API Endpoint. This is a separate,
+opt-in profile: existing provider selection, OpenAI endpoint/model/key, PDF input
+mode and legacy secret migration remain intact. The new profile stores only a
+secret *name*. Page rendering, batching, prompt rules, figure extraction and output
+options are shared with the existing OpenAI converter. Changing those shared
+options also changes the existing converter's rendering options.
+
+Supported protocols:
+
+| Protocol | Base URL example | Requests and capability checks |
+| --- | --- | --- |
+| OpenAI Chat Completions | `http://127.0.0.1:8080/v1` (Nativ), `http://localhost:1234/v1` (LM Studio), or an HTTPS provider | `GET /models`, `POST /chat/completions`, `image_url` data URLs, non-streaming JSON. Test endpoint checks discovery/authentication with no model or vision requirement and fills a model picker. Model/vision checks happen separately before OCR. |
+| Ollama native | `http://127.0.0.1:11434` | `GET /api/tags` tests discovery/authentication and fills the picker without requiring a model. Before OCR, `POST /api/show` must report `vision`; `POST /api/chat` sends base64 `images` arrays, `stream:false`. Use an Ollama server exposing model capabilities. |
+
+These are protocol adapters, not a claim that every AI platform or model implements
+them. Anthropic Messages, Responses API, arbitrary JSON endpoints and direct PDF
+attachments are not implemented by the new profile. PDFs are rendered to JPEG
+page images locally using Obsidian's PDF.js. Only generative vision models can
+transcribe them; text-only, embedding, speech and image-generation models cannot.
+
+Configure the exact model ID and a secret if the server requires authentication.
+For OpenAI protocol, verify image data URL support in that model/server's docs and
+enable **Confirm vision support**. Changing protocol, endpoint or model clears the
+confirmation. **Test endpoint** checks only endpoint/authentication and loads the
+model picker, regardless of any blank or stale selection. Choose a readable model
+label from that list; the exact server ID is retained internally. Discovery does
+not automatically select a model or infer vision support from its name. A valid
+saved model is preserved; stale values remain visible until you deliberately
+change them. Endpoint, protocol or secret-reference changes invalidate the list.
+The test can be cancelled; a newer request supersedes an older one.
+
+If discovery is unavailable (HTTP 404/405/501), the endpoint is reported as reachable
+with completion support unverified, and manual entry is shown. Empty discovery
+also offers manual entry. Malformed, authentication and network errors remain
+failures and never silently select another model. For OpenAI OCR, a nonempty
+model list validates the selected ID; missing/empty discovery permits the manually
+configured ID, with vision confirmation still required. Ollama validates the
+selected model's reported vision capability separately through `/api/show`.
+Start with **Pages per request = 1**, **Parallel
+requests = 1**, **Render scale = 1–2**, then convert a synthetic sample PDF and
+review the result. OCR, formulas and especially figure bounding boxes depend on
+the model and can be inaccurate.
+
+Provider parameters are independent of the old OpenAI extra parameters. Examples:
+`{"temperature":0,"max_tokens":4096}` for OpenAI, or
+`{"options":{"temperature":0,"num_predict":4096}}` for Ollama. Reserved routing,
+message, streaming and tool parameters cannot override the adapter's request.
+Empty or truncated model output fails conversion instead of importing an incomplete
+note. There are no automatic retries or fallback to a cloud provider.
+
+The new profile uses desktop Node HTTP(S) so local servers do not require browser
+CORS/security changes. It has a total timeout per request (default 180 seconds,
+configurable 5–1800), a 16 MiB response limit and no redirect following. Server error
+bodies and low-level network errors are not displayed, since they may echo private
+input or credentials. Use **OCR-AI: Cancel additional AI provider conversions** to
+close active HTTP requests and stop queued page batches for this profile. Changing
+settings or unloading the plugin also cancels them. Cancellation during PDF.js
+rendering takes effect at the next render/request boundary. Once output enters the
+separate formatting/publication pipeline, use **Recover conversions / view active
+jobs** to cancel that job. Closing a client request does not guarantee the server
+immediately stops computing. Existing providers retain their previous transport.
+
+For local-server setup and protocol limitations, see
+[docs/AI-PROVIDERS.md](docs/AI-PROVIDERS.md).
+To extend protocols, implement `VisionProtocol` in `src/providers/visionProvider.ts`
+and expose its ID in the new profile dropdown. Keep model verification and payload
+encoding in the adapter; the converter handles rendering and publication.
+
+Development verification: `npm ci --ignore-scripts`, `npm test`, `npm run build`.
+Tests use generated synthetic content, mocked Obsidian/PDF.js boundaries and temporary
+loopback HTTP servers; they do not access a vault or paid inference API.
+
+Provider abstraction, endpoint discovery and model-picker contribution by **MyPraise App**.

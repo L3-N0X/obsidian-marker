@@ -31,7 +31,7 @@ const PROMPT_EDITOR_CONFIG: PromptEditorConfig = {
     buildSystemPrompt(settings, isImageExtractionEnabled(settings)),
 };
 
-interface ChatContentPart {
+export interface ChatContentPart {
   type: 'text' | 'image_url' | 'file';
   text?: string;
   image_url?: { url: string };
@@ -50,6 +50,12 @@ const IMAGE_PLACEHOLDER_REGEX =
 const MIN_FIGURE_SIZE = 8; // px, smaller boxes are treated as noise
 
 export class OpenAICompatibleConverter extends BaseConverter {
+  protected assertConversionActive(): void {}
+
+  protected processorId(): string { return 'openai-compatible'; }
+
+  protected providerLabel(): string { return 'OpenAI compatible'; }
+
   async convert(
     app: App,
     settings: MarkerSettings,
@@ -72,6 +78,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
     );
 
     try {
+      this.assertConversionActive();
       const fileContent = await app.vault.readBinary(file);
       const result =
         settings.openaiInputMode === 'pdf'
@@ -86,6 +93,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
 
       // The pipeline may run CLI formatting for a while, so stop showing progress
       progress.hide();
+      this.assertConversionActive();
       return await this.processConversionResult(
         settings,
         result,
@@ -94,12 +102,12 @@ export class OpenAICompatibleConverter extends BaseConverter {
       );
     } catch (error) {
       console.error(
-        'OpenAI compatible conversion error:',
+        `${this.providerLabel()} conversion error:`,
         error.message,
         error.stack
       );
       new Notice(
-        `OpenAI compatible conversion failed: ${
+        `${this.providerLabel()} conversion failed: ${
           error.message || 'Network or server error'
         }`
       );
@@ -154,10 +162,12 @@ export class OpenAICompatibleConverter extends BaseConverter {
       );
 
       await this.runWithConcurrency(batches.length, concurrency, async (i) => {
+        this.assertConversionActive();
         const pageNumbers = batches[i];
         const pages: RenderedPage[] = [];
         try {
           for (const pageNumber of pageNumbers) {
+            this.assertConversionActive();
             pages.push(await this.renderPage(pdf, pageNumber, renderScale));
           }
 
@@ -201,7 +211,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
         images,
         metadata: {
           page_count: pageCount,
-          processor: 'openai-compatible',
+          processor: this.processorId(),
           model: settings.openaiModel,
         },
       };
@@ -244,7 +254,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
       markdown: this.joinPages([this.stripImagePlaceholders(output)], settings),
       images: {},
       metadata: {
-        processor: 'openai-compatible',
+        processor: this.processorId(),
         model: settings.openaiModel,
       },
     };
@@ -292,7 +302,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
     } into Markdown.`;
   }
 
-  private async requestCompletion(
+  protected async requestCompletion(
     settings: MarkerSettings,
     systemPrompt: string,
     content: ChatContentPart[],
@@ -348,7 +358,7 @@ export class OpenAICompatibleConverter extends BaseConverter {
     return this.cleanOutput(text);
   }
 
-  private cleanOutput(text: string): string {
+  protected cleanOutput(text: string): string {
     let output = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
     // Some servers strip the opening tag of reasoning output
     const thinkEnd = output.indexOf('</think>');
