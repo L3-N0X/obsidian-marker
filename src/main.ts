@@ -6,6 +6,7 @@ import { MarkerApiDockerConverter } from './converters/markerApiDocker';
 import { PythonLocalAPIConverter } from "./converters/markerLocalPythonApi";
 import { PythonCloudAPIConverter } from './converters/markerCloudPythonApi';
 import { MistralAIConverter } from './converters/mistralaiConverter';
+import { AIProviderConverter } from './converters/aiProviderConverter';
 import { OpenAICompatibleConverter } from './converters/openaiCompatibleConverter';
 import {
   MathpixConverter,
@@ -65,11 +66,21 @@ export default class Marker extends Plugin {
     void this.pipeline.initialize().catch(() => new Notice('Could not initialize conversion recovery. Check access to the OS temporary directory.'));
     this.setConverter(); // Instantiate converter based on settings
     this.addCommands();
+    this.addCommand({ id: 'cancel-ai-provider', name: 'Cancel additional AI provider conversions', callback: () => {
+      if (this.converter instanceof AIProviderConverter) this.converter.cancelAll();
+    } });
     this.addSettingTab(new MarkerSettingTab(this.app, this));
     this.registerFileMenuEvents();
   }
 
   private setConverter() {
+    if (this.converter instanceof AIProviderConverter) {
+      this.converter.cancelAll();
+      if (this.settings.apiEndpoint === 'ai-provider') {
+        this.converter.syncProfile(this.settings);
+        return; // Keep the picker/controller attached to the live converter.
+      }
+    }
     switch (this.settings.apiEndpoint) {
       case 'datalab':
         this.converter = new DatalabConverter(this.app, this.pipeline);
@@ -85,6 +96,9 @@ export default class Marker extends Plugin {
         break;
       case 'mistralai':
         this.converter = new MistralAIConverter(this.app, this.pipeline);
+        break;
+      case 'ai-provider':
+        this.converter = new AIProviderConverter(this.app, this.pipeline);
         break;
       case 'openai':
         this.converter = new OpenAICompatibleConverter(this.app, this.pipeline);
@@ -178,6 +192,7 @@ export default class Marker extends Plugin {
 
   async onunload() {
     this.stopped = true;
+    if (this.converter instanceof AIProviderConverter) this.converter.cancelAll();
     this.pipeline?.dispose();
     this.jobsListeners.clear();
   }

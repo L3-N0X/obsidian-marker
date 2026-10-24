@@ -71,6 +71,15 @@ export interface MarkerSettings {
   imageLimit?: number;
   imageMinSize?: number; // Minimum height and width of images to extract
   deleteFileFromMistralaiAfterConversion?: boolean;
+  // Independent provider profile; old OpenAI settings remain unchanged.
+  aiProtocol?: string;
+  aiBaseUrl?: string;
+  aiModel?: string;
+  aiApiKeySecret?: string;
+  aiVisionConfirmed?: boolean;
+  aiTimeoutSeconds?: number;
+  aiExtraParams?: string;
+
   // OpenAI compatible API parameters
   openaiBaseUrl?: string;
   openaiApiKeySecret?: string;
@@ -149,6 +158,13 @@ export const DEFAULT_SETTINGS: MarkerSettings = {
   imageLimit: 0,
   imageMinSize: 0, // Default to 0 (no minimum size)
   deleteFileFromMistralaiAfterConversion: false,
+  aiProtocol: 'openai-chat',
+  aiBaseUrl: 'http://127.0.0.1:8080/v1',
+  aiModel: '',
+  aiApiKeySecret: '',
+  aiVisionConfirmed: false,
+  aiTimeoutSeconds: 180,
+  aiExtraParams: '',
   openaiBaseUrl: 'https://api.openai.com/v1',
   openaiApiKeySecret: '',
   openaiModel: '',
@@ -192,6 +208,7 @@ export class MarkerSettingTab extends PluginSettingTab {
           .addOption('python-cloud-api', 'Python Cloud API')
           .addOption('mistralai', 'MistralAI')
           .addOption('openai', 'OpenAI compatible')
+          .addOption('ai-provider', 'AI provider (local / additional)')
           .addOption('mathpix', 'Mathpix')
           .setValue(this.plugin.settings.apiEndpoint)
           .onChange(async (value) => {
